@@ -92,7 +92,6 @@ training_goals <- master_data %>%
   rename(win_loss = win_loss_factor) %>%
   as.data.frame()
 
-
 testing_goals <- master_data %>% 
   filter(created_at > as.Date(test_date)) %>%
   select(-team_input, -created_at) %>%
