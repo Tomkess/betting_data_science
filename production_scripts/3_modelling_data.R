@@ -120,6 +120,7 @@ test_prepared_goals <- recipe_goals %>%
 
 model_recipe_goals <- recipe(prepared_goals, formula = win_loss ~ .,)
 
+
 # ----- Saving the Output -----
 rm(master_data)
 save.image("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science/data/production_data/3_modelling_data.RData")
