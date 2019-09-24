@@ -12,7 +12,8 @@ library(furrr)
 test_date <- "2018-10-05"
 
 # ----- Read Variables -----
-master_data <- readRDS(file = "data/production_data/2_variable_calculation.RData")
+master_data <- 
+  readRDS(file = "data/production_data/2_variable_calculation.RData")
 
 # ----- Get the Predicted Variable -----
 winloss_data <- readRDS(file = "data/production_data/0_data_download.RData")
