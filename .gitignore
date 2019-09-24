@@ -4,9 +4,10 @@
 .Ruserdata
 *.html
 *.xml
-data/
+data/*
 *.xlsx
 *.txt
 vignettes/*
 data/*
 *.pdf
+documentation/*
