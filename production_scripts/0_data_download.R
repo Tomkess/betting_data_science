@@ -7,7 +7,7 @@ library(dplyr)
 # ----- Set the Working Directory -----
 if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
   # - path on server
-  setwd("home/peter.tomko/concept---data-science")
+  setwd("/home/peter.tomko/concept---data-science")
 }else{
   # - path on local
   setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
