@@ -9,6 +9,7 @@ library(dials)
 library(tidymodels)
 library(furrr)
 
+setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
 test_date <- "2018-10-05"
 
 # ----- Read Variables -----
@@ -119,7 +120,6 @@ test_prepared_goals <- recipe_goals %>%
   as.data.frame()
 
 model_recipe_goals <- recipe(prepared_goals, formula = win_loss ~ .,)
-
 
 # ----- Saving the Output -----
 rm(master_data)

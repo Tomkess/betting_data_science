@@ -3,7 +3,14 @@ library(dplyr)
 library(data.table)
 library(tidyverse)
 
-setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+# ----- Set the Working Directory -----
+if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
+  # - path on server
+  setwd("home/peter.tomko/concept---data-science")
+}else{
+  # - path on local
+  setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+}
 
 time_download <- Sys.time()
 

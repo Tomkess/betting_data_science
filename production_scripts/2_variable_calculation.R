@@ -9,7 +9,13 @@ library(doParallel)
 library(foreach)
 
 # ----- Set the Working Directory -----
-setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
+  # - path on server
+  setwd("home/peter.tomko/concept---data-science")
+}else{
+  # - path on local
+  setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+}
 
 # ----- Load the Data -----
 master_data <- readRDS("data/production_data/0_data_download.RData")
@@ -38,6 +44,9 @@ master_data <- master_data %>%
          adjusted_mean250 = mean(c(B365.2.5, P.2.5, B365C.2.5, PC.2.5, GB.2.5, Max.2.5, Avg.2.5), na.rm = TRUE),
          adjusted_meanC251 = mean(c(B365C.2.5.1, PC.2.5.1, B365C.2.5.1, PC.2.5.1, MaxC.2.5.1, AvgC.2.5.1), na.rm = TRUE),
          adjusted_meanC250 = mean(c(B365C.2.5, PC.2.5, B365C.2.5, PC.2.5, MaxC.2.5, AvgC.2.5), na.rm = TRUE),
+         
+         HomeTeam = trimws(HomeTeam, which = "both"),
+         AwayTeam = trimws(AwayTeam, which = "both"),
          
          total_goals = FTAG + FTHG)
 
@@ -348,10 +357,10 @@ if("2_variable_calculation.RData" %in% list.files("data/production_data")){
 }
 
 output_list <- list()
-if(nrow(dates_all) <= 3500){
+if(nrow(dates_all) <= 5000){
   n_iter <- nrow(dates_all)
 }else{
-  n_iter <- 3500
+  n_iter <- 5000
 }
 
 # - Parallel Version

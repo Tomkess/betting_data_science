@@ -4,7 +4,14 @@ library(stringr)
 library(data.table)
 library(dplyr)
 
-setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+# ----- Set the Working Directory -----
+if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
+  # - path on server
+  setwd("home/peter.tomko/concept---data-science")
+}else{
+  # - path on local
+  setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+}
 
 # ----- Initial Webpage crawling -----
 start_url <- c("https://www.football-data.co.uk/data.php")
@@ -95,12 +102,20 @@ if("0_data_download.RData" %in% list.files("data/production_data")){
   temp_load <- readRDS("data/production_data/0_data_download.RData")
   
   data_save <- bind_rows(temp_load, master_data)
-  saveRDS(object = data_save %>% as.data.frame(), 
+  saveRDS(object = data_save %>% 
+            as.data.frame()  %>%
+            rowwise() %>%
+            mutate(HomeTeam = trimws(HomeTeam, which = "both"),
+                   AwayTeam = trimws(AwayTeam, which = "both")), 
           file = "data/production_data/0_data_download.RData")
   
 }else{
   
-  saveRDS(object = master_data %>% as.data.frame(), 
+  saveRDS(object = master_data %>% 
+            as.data.frame() %>%
+            rowwise() %>%
+            mutate(HomeTeam = trimws(HomeTeam, which = "both"),
+                   AwayTeam = trimws(AwayTeam, which = "both")), 
           file = "data/production_data/0_data_download.RData")
   
 }
