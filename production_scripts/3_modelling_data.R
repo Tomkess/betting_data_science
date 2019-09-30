@@ -10,7 +10,7 @@ library(tidymodels)
 library(furrr)
 
 setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
-test_date <- "2018-10-05"
+test_date <- "2018-09-05"
 
 # ----- Read Variables -----
 master_data <- 
@@ -19,12 +19,39 @@ master_data <-
 # ----- Get the Predicted Variable -----
 winloss_data <- readRDS(file = "data/production_data/0_data_download.RData")
 winloss_data <- winloss_data %>%
-  select(created_at, HomeTeam, AwayTeam, FTR, FTAG, FTHG) %>%
+  rowwise() %>%
+  mutate(adjusted_D = coalesce(B365D, BWD, IWD, PSD, WHD, VCD, LBD, SJD, GBD, BSD, SBD, SOD, SYD),
+         adjusted_H = coalesce(B365H, BWH, IWH, PSH, WHH, VCH, LBH, SJH, GBH, BSH, SBH, SOH, SYH),
+         adjusted_A = coalesce(B365A, BWA, IWA, PSA, WHA, VCA, LBA, SJA, GBA, BSA, SBA, SOA, SYA),
+         HomeTeam = trimws(HomeTeam, which = "both"),
+         AwayTeam = trimws(AwayTeam, which = "both"),
+         total_goals = FTAG + FTHG) %>%
+  select(created_at, HomeTeam, AwayTeam, FTR, FTAG, FTHG, adjusted_H, adjusted_A, adjusted_D) %>%
   rowwise() %>%
   mutate(total_goals = FTAG + FTHG,
          win_loss = ifelse(FTR %in% "H", 
                            HomeTeam, ifelse(FTR %in% "A", AwayTeam, "Draw")),
          winloss_indicator = 1)
+
+winloss_data[is.na(winloss_data)] <- 1
+
+# ----- Sampling the Data -----
+
+# - outsider won
+winloss_data$samples_outsider <- 1
+winloss_data$samples_outsider[winloss_data$adjusted_H > winloss_data$adjusted_A & winloss_data$FTR %in% "H"] <- 
+  ceiling(winloss_data$adjusted_H[winloss_data$adjusted_H > winloss_data$adjusted_A & winloss_data$FTR %in% "H"])
+winloss_data$samples_outsider[winloss_data$adjusted_H < winloss_data$adjusted_A & winloss_data$FTR %in% "A"] <- 
+  ceiling(winloss_data$adjusted_A[winloss_data$adjusted_H < winloss_data$adjusted_A & winloss_data$FTR %in% "A"])
+
+# - draw result
+winloss_data$samples_draw <- 1
+winloss_data$samples_draw[winloss_data$win_loss %in% "Draw"] <- 
+  ceiling(winloss_data$adjusted_D[winloss_data$win_loss %in% "Draw"]) + 1
+
+# - total samples
+winloss_data$total_samples <- winloss_data$samples_draw + 
+  winloss_data$samples_outsider
 
 master_data <- master_data %>%
   left_join(., winloss_data %>% 
@@ -33,10 +60,10 @@ master_data <- master_data %>%
               distinct(), by = c("created_at" = "created_at", 
                                       "team_input" = "win_loss")) %>%
   left_join(., winloss_data %>% 
-              select(created_at, HomeTeam, total_goals) %>% 
+              select(created_at, HomeTeam, total_goals, total_samples) %>% 
               rename(team_input = HomeTeam) %>% 
               rbind(., winloss_data %>% 
-                      select(created_at, AwayTeam, total_goals) %>% 
+                      select(created_at, AwayTeam, total_goals, total_samples) %>% 
                       rename(team_input = AwayTeam)) %>% 
               as.data.frame() %>%
               distinct(), by = c("created_at" = "created_at", 
@@ -50,7 +77,11 @@ rm(winloss_data)
 # ----- Winner Prediction Data -----
 training_winner <- master_data %>% 
   filter(created_at <= as.Date(test_date)) %>%
-  select(-team_input, -created_at) %>%
+  mutate(i = row_number()) %>% 
+  group_by(i) %>% 
+  do(sample_n(., total_samples, replace = TRUE)) %>%
+  as.data.frame() %>%
+  select(-team_input, -created_at, -i, -total_samples) %>%
   mutate(win_loss_factor = ifelse(win_loss == 0, "L", "W")) %>%
   select(-win_loss, -total_goals) %>%
   rename(win_loss = win_loss_factor) %>%
@@ -87,7 +118,11 @@ model_recipe_winner <- recipe(prepared_winner, formula = win_loss ~ .,)
 # ----- Goals Prediction Data -----
 training_goals <- master_data %>% 
   filter(created_at <= as.Date(test_date)) %>%
-  select(-team_input, -created_at) %>%
+  mutate(i = row_number()) %>% 
+  group_by(i) %>% 
+  do(sample_n(., total_samples, replace = TRUE)) %>%
+  as.data.frame() %>%
+  select(-team_input, -created_at, -i, -total_samples) %>%
   mutate(win_loss_factor = ifelse(total_goals < 2.5, "L", "W")) %>%
   select(-win_loss, -total_goals) %>%
   rename(win_loss = win_loss_factor) %>%
