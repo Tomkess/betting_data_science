@@ -321,27 +321,22 @@ if("2_variable_calculation.RData" %in% list.files("data/production_data")){
   data_temp <- readRDS("data/production_data/2_variable_calculation.RData")
   
   dates_all <- rbind(master_data %>%
-                       select(created_at, HomeTeam, AwayTeam) %>%
-                       distinct() %>%
-                       as.data.frame() %>%
-                       filter(!(created_at %in% data_temp$created_at & 
-                                  (HomeTeam %in% data_temp$team_input | 
-                                     AwayTeam %in% data_temp$team_input))) %>%
-                       as.data.frame() %>%
+                       select(created_at, HomeTeam) %>%
                        rename(team_input = HomeTeam) %>%
-                       select(created_at, team_input) %>%
+                       distinct() %>%
                        as.data.frame(),
                      master_data %>%
-                       select(created_at, HomeTeam, AwayTeam) %>%
-                       distinct() %>%
-                       as.data.frame() %>%
-                       filter(!(created_at %in% data_temp$created_at & 
-                                  (HomeTeam %in% data_temp$team_input | 
-                                     AwayTeam %in% data_temp$team_input))) %>%
-                       as.data.frame() %>%
+                       select(created_at, AwayTeam) %>%
                        rename(team_input = AwayTeam) %>%
-                       select(created_at, team_input) %>%
-                       as.data.frame())
+                       distinct() %>%
+                       as.data.frame()) %>%
+    as.data.frame() %>%
+    distinct() %>%
+    left_join(., data_temp %>% 
+                select(team_input, created_at) %>% 
+                mutate(in_sample = 1)) %>%
+    filter(is.na(in_sample)) %>%
+    select(-in_sample)
 }else{
   dates_all <- rbind(master_data %>%
                        select(created_at, HomeTeam) %>%
@@ -353,60 +348,66 @@ if("2_variable_calculation.RData" %in% list.files("data/production_data")){
                        rename(team_input = AwayTeam) %>%
                        distinct() %>%
                        as.data.frame()) %>%
-    as.data.frame()
+    as.data.frame() %>%
+    distinct()
 }
 
-output_list <- list()
-if(nrow(dates_all) <= 5000){
-  n_iter <- nrow(dates_all)
-}else{
-  n_iter <- 5000
-}
-
-# - Parallel Version
-cl <- makeCluster(detectCores() - 2)
-registerDoParallel(cl)
-
-hist_data <- foreach(i = 1:n_iter, 
-                     .combine = rbind, 
-                     .packages = c("data.table", "dplyr", "tidymodels", "tidyr", "tidyverse"), 
-                     .export = c("master_data", "dates_all", "get_n_matches_statistics")) %dopar% {
-                       
-                       master_subset <- master_data %>% 
-                         filter(HomeTeam %in% dates_all$team_input[i] | 
-                                  AwayTeam %in% dates_all$team_input[i])
-                         
-                       temp_result <- lapply(c(seq.int(from = 5, to = 50, by = 10)), 
-                                             function(x) 
-                                               get_n_matches_statistics(data_input = master_subset, 
-                                                                        team_input = dates_all$team_input[i], 
-                                                                        match_date = dates_all$created_at[i], 
-                                                                        number_matches = x))
-                       
-                       temp_data <- bind_rows(temp_result) %>% 
-                         as.data.frame() %>%
-                         summarise_all(., max, na.rm = TRUE) %>% 
-                         as.data.frame()
-                       temp_data[mapply(is.infinite, temp_data)] <- NA
-                       temp_data$created_at <- rep(dates_all$created_at[i], nrow(temp_data))
-                       temp_data$team_input <- rep(dates_all$team_input[i], nrow(temp_data))
-                       
-                       return(temp_data)
-                       # print(i)
-                     }
-stopCluster(cl)
-# - Parallel Version
-
-# ----- Save Data ----- #
-if("2_variable_calculation.RData" %in% list.files("data/production_data")){
-  data_temp <- readRDS("data/production_data/2_variable_calculation.RData")
+if(nrow(dates_all) > 0){
+  output_list <- list()
+  if(nrow(dates_all) <= 6000){
+    n_iter <- nrow(dates_all)
+  }else{
+    n_iter <- 6000
+  }
   
-  save_data <- rbind(data_temp, hist_data) %>% as.data.frame()
-  saveRDS(object = save_data, 
-          file = "data/production_data/2_variable_calculation.RData")
-
-}else{
-  save_data <- hist_data %>% as.data.frame()
-  saveRDS(object = save_data, 
-          file = "data/production_data/2_variable_calculation.RData")
+  # - Parallel Version
+  start_time <- Sys.time()
+  cl <- makeCluster(detectCores() - 1)
+  registerDoParallel(cl)
+  
+  hist_data <- foreach(i = 1:n_iter, 
+                       .combine = rbind, 
+                       .packages = c("data.table", "dplyr", "tidymodels", "tidyr", "tidyverse"), 
+                       .export = c("master_data", "dates_all", "get_n_matches_statistics")) %dopar% {
+                         
+                         master_subset <- master_data %>% 
+                           filter(HomeTeam %in% dates_all$team_input[i] | 
+                                    AwayTeam %in% dates_all$team_input[i])
+                         
+                         temp_result <- lapply(c(seq.int(from = 5, to = 50, by = 10)), 
+                                               function(x) 
+                                                 get_n_matches_statistics(data_input = master_subset, 
+                                                                          team_input = dates_all$team_input[i], 
+                                                                          match_date = dates_all$created_at[i], 
+                                                                          number_matches = x))
+                         
+                         temp_data <- bind_rows(temp_result) %>% 
+                           as.data.frame() %>%
+                           summarise_all(., max, na.rm = TRUE) %>% 
+                           as.data.frame()
+                         
+                         temp_data[mapply(is.infinite, temp_data)] <- NA
+                         temp_data$created_at <- rep(dates_all$created_at[i], nrow(temp_data))
+                         temp_data$team_input <- rep(dates_all$team_input[i], nrow(temp_data))
+                         
+                         return(temp_data)
+                         # print(i)
+                       }
+  end_time <- Sys.time()
+  stopCluster(cl)
+  # - Parallel Version
+  
+  # ----- Save Data ----- #
+  if("2_variable_calculation.RData" %in% list.files("data/production_data")){
+    data_temp <- readRDS("data/production_data/2_variable_calculation.RData")
+    
+    save_data <- rbind(data_temp, hist_data) %>% as.data.frame()
+    saveRDS(object = save_data, 
+            file = "data/production_data/2_variable_calculation.RData")
+    
+  }else{
+    save_data <- hist_data %>% as.data.frame()
+    saveRDS(object = save_data, 
+            file = "data/production_data/2_variable_calculation.RData")
+  }
 }
