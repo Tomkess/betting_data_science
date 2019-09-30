@@ -15,5 +15,11 @@ source("production_scripts/0_data_download.R")
 # ----- 1_tipsport_feedxml.R ----- 
 source("production_scripts/1_tipsport_feedxml.R")
 
-# ----- 1_tipsport_feedxml.R ----- 
+# ----- 2_variable_calculation.R ----- 
 source("production_scripts/2_variable_calculation.R")
+
+# ----- 3_modelling_data.R ----- 
+source("production_scripts/3_modelling_data.R")
+
+# ----- 4_xml_preprocessing.R ----- 
+source("production_scripts/4_xml_preprocessing.R")
