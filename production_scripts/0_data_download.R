@@ -4,6 +4,9 @@ library(stringr)
 library(data.table)
 library(dplyr)
 
+rm(list = ls())
+gc()
+
 # ----- Set the Working Directory -----
 if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
   # - path on server
@@ -97,25 +100,39 @@ master_data <- master_data %>%
   select(-one_of(c("year_adj", "get_year", "get_month", "get_day", "Date"))) %>%
   distinct()
 
+master_data_actual <- master_data
+rm(master_data)
+
 # ----- Save RDS file -----
 if("0_data_download.RData" %in% list.files("data/production_data")){
-  temp_load <- readRDS("data/production_data/0_data_download.RData")
+  load("data/production_data/0_data_download.RData")
   
-  data_save <- bind_rows(temp_load, master_data)
-  saveRDS(object = data_save %>% 
-            as.data.frame()  %>%
-            rowwise() %>%
-            mutate(HomeTeam = trimws(HomeTeam, which = "both"),
-                   AwayTeam = trimws(AwayTeam, which = "both")), 
-          file = "data/production_data/0_data_download.RData")
+  data_save <- 
+    bind_rows(master_data_actual, master_data) %>%
+    as.data.frame()  %>%
+    group_by(.) %>%
+    distinct() %>%
+    rowwise() %>%
+    mutate(HomeTeam = trimws(HomeTeam, which = "both"),
+           AwayTeam = trimws(AwayTeam, which = "both"))
+  master_data <- data_save
+  
+  save(master_data, 
+       file = "data/production_data/0_data_download.RData")
   
 }else{
   
-  saveRDS(object = master_data %>% 
-            as.data.frame() %>%
-            rowwise() %>%
-            mutate(HomeTeam = trimws(HomeTeam, which = "both"),
-                   AwayTeam = trimws(AwayTeam, which = "both")), 
-          file = "data/production_data/0_data_download.RData")
+  master_data_actual <-
+    master_data_actual %>%
+    as.data.frame() %>%
+    group_by(.) %>%
+    distinct() %>%
+    rowwise() %>%
+    mutate(HomeTeam = trimws(HomeTeam, which = "both"),
+           AwayTeam = trimws(AwayTeam, which = "both"))
+  
+  master_data <- master_data_actual
+
+  save(master_data, file = "data/production_data/0_data_download.RData")
   
 }
