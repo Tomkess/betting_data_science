@@ -23,3 +23,6 @@ source("production_scripts/3_modelling_data.R")
 
 # ----- 4_xml_preprocessing.R ----- 
 source("production_scripts/4_xml_preprocessing.R")
+
+# ----- 5_model_estimation.R ----- 
+source("production_scripts/5_model_Estiamtion.R")
