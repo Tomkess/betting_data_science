@@ -4,6 +4,9 @@
 library(dplyr)
 library(data.table)
 
+rm(list = ls())
+gc()
+
 # ----- Set Working Directory -----
 setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
 
@@ -43,8 +46,11 @@ football_leagues <-
     "1. řecká liga")
 
 # ----- Loading the Data -----
-data_xml <- readRDS("data/production_data/1_tipsport_feedxml.RData")
-master_data <- readRDS(file = "data/production_data/0_data_download.RData")
+load("data/production_data/1_tipsport_feedxml.RData")
+data_xml <- data_temp
+rm(data_temp)
+
+load(file = "data/production_data/0_data_download.RData")
 
 # ----- Select only specific leagues and two types of bets - win/loss, +/-2.5 ----
 data_subset <- data_xml %>%
@@ -216,5 +222,5 @@ mapping_table$fullname[mapping_table$team_input %in% "St Mirren"] <- "St. Mirren
 mapping_table$fullname[mapping_table$team_input %in% "St Johnstone"] <- "St. Johnstone"
 mapping_table$fullname[mapping_table$team_input %in% "Stirling"] <- "Stirling Albion"
 
-saveRDS(object = mapping_table %>% as.data.frame(), 
-        file = "data/production_data/4_xml_preprocessing.RData")
+save(mapping_table, 
+     file = "data/production_data/4_xml_preprocessing.RData")

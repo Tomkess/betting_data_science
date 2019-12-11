@@ -8,6 +8,9 @@ library(yardstick)
 library(doParallel)
 library(foreach)
 
+rm(list = ls())
+gc()
+
 # ----- Set the Working Directory -----
 if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
   # - path on server
@@ -18,41 +21,83 @@ if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
 }
 
 # ----- Load the Data -----
-master_data <- readRDS("data/production_data/0_data_download.RData")
+load("data/production_data/0_data_download.RData")
 
 # ----- Compute Adjusted Variables -----
 master_data <- master_data %>%
   rowwise() %>%
-  mutate(adjusted_D = coalesce(B365D, BWD, IWD, PSD, WHD, VCD, LBD, SJD, GBD, BSD, SBD, SOD, SYD),
-         adjusted_H = coalesce(B365H, BWH, IWH, PSH, WHH, VCH, LBH, SJH, GBH, BSH, SBH, SOH, SYH),
-         adjusted_A = coalesce(B365A, BWA, IWA, PSA, WHA, VCA, LBA, SJA, GBA, BSA, SBA, SOA, SYA),
+  mutate(adjusted_D = coalesce(B365D, BWD, IWD, PSD, WHD, VCD, LBD, SJD, GBD, 
+                               BSD, SBD, SOD, SYD),
+         adjusted_H = coalesce(B365H, BWH, IWH, PSH, WHH, VCH, LBH, SJH, GBH, 
+                               BSH, SBH, SOH, SYH),
+         adjusted_A = coalesce(B365A, BWA, IWA, PSA, WHA, VCA, LBA, SJA, GBA, 
+                               BSA, SBA, SOA, SYA),
          adjusted_CD = coalesce(B365CD, BWCD, IWCD, PSCD, WHCD, VCCD),
          adjusted_CH = coalesce(B365CH, BWCH, IWCH, PSCH, WHCH, VCCH),
          adjusted_CA = coalesce(B365CA, BWCA, IWCA, PSCA, WHCA, VCCA),
-         adjusted_251 = coalesce(B365.2.5.1, P.2.5.1, B365C.2.5.1, PC.2.5.1, GB.2.5.1, Max.2.5.1, Avg.2.5.1),
-         adjusted_250 = coalesce(B365.2.5, P.2.5, B365C.2.5, PC.2.5, GB.2.5, Max.2.5, Avg.2.5),
-         adjusted_C251 = coalesce(B365C.2.5.1, PC.2.5.1, B365C.2.5.1, PC.2.5.1, MaxC.2.5.1, AvgC.2.5.1),
-         adjusted_C250 = coalesce(B365C.2.5, PC.2.5, B365C.2.5, PC.2.5, MaxC.2.5, AvgC.2.5),
+         adjusted_251 = coalesce(B365.2.5.1, P.2.5.1, B365C.2.5.1, PC.2.5.1, 
+                                 GB.2.5.1, Max.2.5.1, Avg.2.5.1),
+         adjusted_250 = coalesce(B365.2.5, P.2.5, B365C.2.5, PC.2.5, GB.2.5, 
+                                 Max.2.5, Avg.2.5),
+         adjusted_C251 = coalesce(B365C.2.5.1, PC.2.5.1, B365C.2.5.1, PC.2.5.1, 
+                                  MaxC.2.5.1, AvgC.2.5.1),
+         adjusted_C250 = coalesce(B365C.2.5, PC.2.5, B365C.2.5, PC.2.5, 
+                                  MaxC.2.5, AvgC.2.5),
          
-         adjusted_meanD = mean(c(B365D, BWD, IWD, PSD, WHD, VCD, LBD, SJD, GBD, BSD, SBD, SOD, SYD), na.rm = TRUE),
-         adjusted_meanH = mean(c(B365H, BWH, IWH, PSH, WHH, VCH, LBH, SJH, GBH, BSH, SBH, SOH, SYH), na.rm = TRUE),
-         adjusted_meanA = mean(c(B365A, BWA, IWA, PSA, WHA, VCA, LBA, SJA, GBA, BSA, SBA, SOA, SYA), na.rm = TRUE),
-         adjusted_meanCD = mean(c(B365CD, BWCD, IWCD, PSCD, WHCD, VCCD), na.rm = TRUE),
-         adjusted_meanCH = mean(c(B365CH, BWCH, IWCH, PSCH, WHCH, VCCH), na.rm = TRUE),
-         adjusted_meanCA = mean(c(B365CA, BWCA, IWCA, PSCA, WHCA, VCCA), na.rm = TRUE),
-         adjusted_mean251 = mean(c(B365.2.5.1, P.2.5.1, B365C.2.5.1, PC.2.5.1, GB.2.5.1, Max.2.5.1, Avg.2.5.1)),
-         adjusted_mean250 = mean(c(B365.2.5, P.2.5, B365C.2.5, PC.2.5, GB.2.5, Max.2.5, Avg.2.5), na.rm = TRUE),
-         adjusted_meanC251 = mean(c(B365C.2.5.1, PC.2.5.1, B365C.2.5.1, PC.2.5.1, MaxC.2.5.1, AvgC.2.5.1), na.rm = TRUE),
-         adjusted_meanC250 = mean(c(B365C.2.5, PC.2.5, B365C.2.5, PC.2.5, MaxC.2.5, AvgC.2.5), na.rm = TRUE),
+         adjusted_meanD = mean(c(B365D, BWD, IWD, PSD, WHD, VCD, LBD, SJD, GBD, 
+                                 BSD, SBD, SOD, SYD), na.rm = TRUE),
+         adjusted_meanH = mean(c(B365H, BWH, IWH, PSH, WHH, VCH, LBH, SJH, GBH, 
+                                 BSH, SBH, SOH, SYH), na.rm = TRUE),
+         adjusted_meanA = mean(c(B365A, BWA, IWA, PSA, WHA, VCA, LBA, SJA, GBA, 
+                                 BSA, SBA, SOA, SYA), na.rm = TRUE),
+         adjusted_meanCD = mean(c(B365CD, BWCD, IWCD, PSCD, WHCD, VCCD), 
+                                na.rm = TRUE),
+         adjusted_meanCH = mean(c(B365CH, BWCH, IWCH, PSCH, WHCH, VCCH), 
+                                na.rm = TRUE),
+         adjusted_meanCA = mean(c(B365CA, BWCA, IWCA, PSCA, WHCA, VCCA), 
+                                na.rm = TRUE),
+         adjusted_mean251 = mean(c(B365.2.5.1, P.2.5.1, B365C.2.5.1, PC.2.5.1, 
+                                   GB.2.5.1, Max.2.5.1, Avg.2.5.1)),
+         adjusted_mean250 = mean(c(B365.2.5, P.2.5, B365C.2.5, PC.2.5, GB.2.5, 
+                                   Max.2.5, Avg.2.5), na.rm = TRUE),
+         adjusted_meanC251 = mean(c(B365C.2.5.1, PC.2.5.1, B365C.2.5.1, 
+                                    PC.2.5.1, MaxC.2.5.1, AvgC.2.5.1), 
+                                  na.rm = TRUE),
+         adjusted_meanC250 = mean(c(B365C.2.5, PC.2.5, B365C.2.5, PC.2.5, 
+                                    MaxC.2.5, AvgC.2.5), na.rm = TRUE),
          
          HomeTeam = trimws(HomeTeam, which = "both"),
          AwayTeam = trimws(AwayTeam, which = "both"),
          
-         total_goals = FTAG + FTHG)
+         total_goals = FTAG + FTHG) %>%
+  as.data.frame() %>%
+  group_by(.) %>%
+  distinct() %>%
+  # - necessary columns!
+  filter(!(is.na(HS))) %>%
+  filter(!(is.na(AS))) %>%
+  filter(!(is.na(HST))) %>%
+  filter(!(is.na(AST))) %>%
+  filter(!(is.na(HF))) %>%
+  filter(!(is.na(AF))) %>%
+  filter(!(is.na(HC))) %>%
+  filter(!(is.na(AC))) %>%
+  filter(!(is.na(HY))) %>%
+  filter(!(is.na(AY))) %>%
+  filter(!(is.na(HR))) %>%
+  filter(!(is.na(AR))) %>%
+  filter(!(is.na(adjusted_D))) %>%
+  filter(!(is.na(adjusted_H))) %>%
+  filter(!(is.na(adjusted_A)))
 
 # ----- Create Variable Function -----
 get_n_matches_statistics <- function(data_input, team_input, 
                                      match_date, number_matches){
+  
+  # data_input = master_data
+  # team_input = "Liverpool"
+  # match_date = "2019-08-09"
+  # number_matches = 10
   
   stats_data <- data_input %>%
     filter(created_at < match_date & 
@@ -66,9 +111,8 @@ get_n_matches_statistics <- function(data_input, team_input,
     stats_data <- stats_data[1:number_matches,]
   }
   
-  # ----- Get Historical Variables ----- #
+  # ----- Get Historical Variables ----- 
   historical_stats <- stats_data %>%
-    as.data.frame() %>%
     group_by(.) %>%
     summarise(total_goals = 
                 sum(c(FTHG[HomeTeam %in% team_input],
@@ -80,56 +124,6 @@ get_n_matches_statistics <- function(data_input, team_input,
                 length(HomeTeam[HomeTeam %in% team_input])/n(),
               away_matches = 
                 length(AwayTeam[AwayTeam %in% team_input])/n(),
-              
-              mean_B365 = 
-                mean(c(B365H[HomeTeam %in% team_input], 
-                       B365A[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_BW =
-                mean(c(BWH[HomeTeam %in% team_input], 
-                       BWA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_IW =
-                mean(c(IWH[HomeTeam %in% team_input], 
-                       IWA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_PS =
-                mean(c(PSH[HomeTeam %in% team_input], 
-                       PSA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_WH =
-                mean(c(WHH[HomeTeam %in% team_input], 
-                       WHA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_VC =
-                mean(c(VCH[HomeTeam %in% team_input], 
-                       VCA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_Max =
-                mean(c(MaxH[HomeTeam %in% team_input], 
-                       MaxA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_Avg =
-                mean(c(AvgH[HomeTeam %in% team_input], 
-                       AvgA[AwayTeam %in% team_input]), na.rm = TRUE),
-              
-              mean_B365C = 
-                mean(c(B365H[HomeTeam %in% team_input], 
-                       B365A[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_BWC =
-                mean(c(BWH[HomeTeam %in% team_input], 
-                       BWA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_IWC =
-                mean(c(IWH[HomeTeam %in% team_input], 
-                       IWA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_PSC =
-                mean(c(PSH[HomeTeam %in% team_input], 
-                       PSA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_WHC =
-                mean(c(WHH[HomeTeam %in% team_input], 
-                       WHA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_VCC =
-                mean(c(VCH[HomeTeam %in% team_input], 
-                       VCA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_MaxC =
-                mean(c(MaxH[HomeTeam %in% team_input], 
-                       MaxA[AwayTeam %in% team_input]), na.rm = TRUE),
-              mean_AvgC =
-                mean(c(AvgH[HomeTeam %in% team_input], 
-                       AvgA[AwayTeam %in% team_input]), na.rm = TRUE),
               
               # - sum mean sd of number of shots per match
               sum_shots = sum(HS + AS),
@@ -240,24 +234,7 @@ get_n_matches_statistics <- function(data_input, team_input,
     rowwise() %>%
     mutate(rate_scored = total_goals/(total_goals + total_obtained),
            
-           # - average odds
-           average_odds = mean(na.omit(c(100/(100/mean_B365),
-                                         100/(100/mean_BW),
-                                         100/(100/mean_IW))), na.rm = TRUE),
-           
-           sd_odds = sd(na.omit(c(100/(100/mean_B365),
-                                  100/(100/mean_BW),
-                                  100/(100/mean_IW))), na.rm = TRUE),
-           
            # - share variables
-           ratio_B365 = mean_B365/mean_B365C,
-           ratio_BW = mean_BW/mean_BWC,
-           ratio_IW = mean_IW/mean_IWC,
-           ratio_PS = mean_PS/mean_PSC,
-           ratio_WH = mean_WH/mean_WHC,
-           ratio_VC = mean_VC/mean_VCC,
-           ratio_Max = mean_Max/mean_MaxC,
-           ratio_Avg = mean_Avg/mean_AvgC,
            ratio_sum_shots = sum_shots_teaminput/sum_shots,
            ratio_mean_shots = mean_shots_teaminput/mean_shots,
            ratio_sd_shots = sd_shots_teaminput/sd_shots,
@@ -276,16 +253,6 @@ get_n_matches_statistics <- function(data_input, team_input,
            ratio_sum_red = sum_red_teaminput/sum_red,
            ratio_mean_red = mean_red_teaminput/mean_red,
            ratio_sd_red = sd_red_teaminput/sd_red,
-           
-           # - dummy variables
-           dummy_B365 = ifelse(mean_B365 < mean_B365C, 1, 0),
-           dummy_BW = ifelse(mean_BW < mean_BWC, 1, 0),
-           dummy_IW = ifelse(mean_IW < mean_IWC, 1, 0),
-           dummy_PS = ifelse(mean_PS < mean_PSC, 1, 0),
-           dummy_WH = ifelse(mean_WH < mean_WHC, 1, 0),
-           dummy_VC = ifelse(mean_VC < mean_VCC, 1, 0),
-           dummy_Max = ifelse(mean_Max < mean_MaxC, 1, 0),
-           dummy_Avg = ifelse(mean_Avg < mean_AvgC, 1, 0)
     ) %>%
     as.data.frame()
   
@@ -318,7 +285,7 @@ get_n_matches_statistics <- function(data_input, team_input,
 
 # ------ Compute on Data -----
 if("2_variable_calculation.RData" %in% list.files("data/production_data")){
-  data_temp <- readRDS("data/production_data/2_variable_calculation.RData")
+  load("data/production_data/2_variable_calculation.RData")
   
   dates_all <- rbind(master_data %>%
                        select(created_at, HomeTeam) %>%
@@ -332,7 +299,7 @@ if("2_variable_calculation.RData" %in% list.files("data/production_data")){
                        as.data.frame()) %>%
     as.data.frame() %>%
     distinct() %>%
-    left_join(., data_temp %>% 
+    left_join(., modelling_data %>% 
                 select(team_input, created_at) %>% 
                 mutate(in_sample = 1)) %>%
     filter(is.na(in_sample)) %>%
@@ -352,12 +319,15 @@ if("2_variable_calculation.RData" %in% list.files("data/production_data")){
     distinct()
 }
 
+threshold <- 500000
 if(nrow(dates_all) > 0){
+  
   output_list <- list()
-  if(nrow(dates_all) <= 6000){
+  
+  if(nrow(dates_all) <= threshold){
     n_iter <- nrow(dates_all)
   }else{
-    n_iter <- 6000
+    n_iter <- threshold
   }
   
   # - Parallel Version
@@ -367,19 +337,22 @@ if(nrow(dates_all) > 0){
   
   hist_data <- foreach(i = 1:n_iter, 
                        .combine = rbind, 
-                       .packages = c("data.table", "dplyr", "tidymodels", "tidyr", "tidyverse"), 
-                       .export = c("master_data", "dates_all", "get_n_matches_statistics")) %dopar% {
+                       .packages = c("data.table", "dplyr", 
+                                     "tidymodels", "tidyr", 
+                                     "tidyverse")) %dopar% {
                          
                          master_subset <- master_data %>% 
                            filter(HomeTeam %in% dates_all$team_input[i] | 
                                     AwayTeam %in% dates_all$team_input[i])
                          
-                         temp_result <- lapply(c(seq.int(from = 5, to = 50, by = 10)), 
-                                               function(x) 
-                                                 get_n_matches_statistics(data_input = master_subset, 
-                                                                          team_input = dates_all$team_input[i], 
-                                                                          match_date = dates_all$created_at[i], 
-                                                                          number_matches = x))
+                         temp_result <- 
+                           lapply(c(seq.int(from = 10, to = 50, by = 5)), 
+                                  function(x) 
+                                    get_n_matches_statistics(
+                                      data_input = master_subset, 
+                                      team_input = dates_all$team_input[i], 
+                                      match_date = dates_all$created_at[i], 
+                                      number_matches = x))
                          
                          temp_data <- bind_rows(temp_result) %>% 
                            as.data.frame() %>%
@@ -387,8 +360,10 @@ if(nrow(dates_all) > 0){
                            as.data.frame()
                          
                          temp_data[mapply(is.infinite, temp_data)] <- NA
-                         temp_data$created_at <- rep(dates_all$created_at[i], nrow(temp_data))
-                         temp_data$team_input <- rep(dates_all$team_input[i], nrow(temp_data))
+                         temp_data$created_at <- rep(dates_all$created_at[i], 
+                                                     nrow(temp_data))
+                         temp_data$team_input <- rep(dates_all$team_input[i], 
+                                                     nrow(temp_data))
                          
                          return(temp_data)
                          # print(i)
@@ -399,15 +374,15 @@ if(nrow(dates_all) > 0){
   
   # ----- Save Data ----- #
   if("2_variable_calculation.RData" %in% list.files("data/production_data")){
-    data_temp <- readRDS("data/production_data/2_variable_calculation.RData")
+    load("data/production_data/2_variable_calculation.RData")
     
-    save_data <- rbind(data_temp, hist_data) %>% as.data.frame()
-    saveRDS(object = save_data, 
-            file = "data/production_data/2_variable_calculation.RData")
+    modelling_data <- rbind(modelling_data, hist_data) %>% as.data.frame()
+    save(modelling_data, 
+         file = "data/production_data/2_variable_calculation.RData")
     
   }else{
-    save_data <- hist_data %>% as.data.frame()
-    saveRDS(object = save_data, 
-            file = "data/production_data/2_variable_calculation.RData")
+    modelling_data <- hist_data %>% as.data.frame()
+    save(modelling_data, 
+         file = "data/production_data/2_variable_calculation.RData")
   }
 }

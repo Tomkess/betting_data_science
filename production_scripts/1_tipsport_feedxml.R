@@ -3,6 +3,9 @@ library(dplyr)
 library(data.table)
 library(tidyverse)
 
+rm(list = ls())
+gc()
+
 # ----- Set the Working Directory -----
 if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
   # - path on server
@@ -14,8 +17,9 @@ if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
 
 time_download <- Sys.time()
 
-xml2_data <- xml2::download_xml("http://ban.tipsport.cz/f/oddsFeed.xml", 
-                                file = "C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science/oddsFeed.xml")
+xml2_data <- 
+  xml2::download_xml("http://ban.tipsport.cz/f/oddsFeed.xml", 
+                     file = "C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science/oddsFeed.xml")
 master_data <- xml2::read_html(xml2_data, encoding = "UTF-8")
 
 df_supersport <- xml_find_all(master_data, "//supersport") %>% 
@@ -106,12 +110,15 @@ odds_data$created_at <- time_download
 
 # ----- Save RDS file -----
 if("1_tipsport_feedxml.RData" %in% list.files("data/production_data")){
-  data_temp <- readRDS("data/production_data/1_tipsport_feedxml.RData")
-  data_temp <- rbind(data_temp, odds_data)
   
-  saveRDS(object = data_temp %>% as.data.frame(), 
-          file = "data/production_data/1_tipsport_feedxml.RData")
+  load("data/production_data/1_tipsport_feedxml.RData")
+  data_temp <- rbind(data_temp, odds_data) %>% as.data.frame()
+  
+  save(data_temp, 
+       file = "data/production_data/1_tipsport_feedxml.RData")
 }else{
-  saveRDS(object = odds_data %>% as.data.frame(), 
+  
+  data_temp <- odds_data %>% as.data.frame()
+  save(data_temp, 
           file = "data/production_data/1_tipsport_feedxml.RData")
 }
