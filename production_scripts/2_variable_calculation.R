@@ -11,6 +11,8 @@ library(foreach)
 rm(list = ls())
 gc()
 
+
+
 # ----- Set the Working Directory -----
 if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
   # - path on server
