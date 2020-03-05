@@ -11,16 +11,8 @@ library(foreach)
 rm(list = ls())
 gc()
 
-
-
 # ----- Set the Working Directory -----
-if(Sys.info()[['nodename']] %in% c('966916-dci1-adw-002.ofg.local')){
-  # - path on server
-  setwd("/home/peter.tomko/concept---data-science")
-}else{
-  # - path on local
-  setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
-}
+setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
 
 # ----- Load the Data -----
 load("data/production_data/0_data_download.RData")
@@ -232,7 +224,7 @@ get_n_matches_statistics <- function(data_input, team_input,
               sd_shotsrate_teaminput = 
                 sd(c(HST[HomeTeam %in% team_input]/(1 + HS[HomeTeam %in% team_input]),
                      AST[AwayTeam %in% team_input]/(1 + AS[AwayTeam %in% team_input])))
-              ) %>%
+    ) %>%
     rowwise() %>%
     mutate(rate_scored = total_goals/(total_goals + total_obtained),
            
@@ -254,28 +246,21 @@ get_n_matches_statistics <- function(data_input, team_input,
            ratio_sd_yellow = sd_yellow_teaminput/sd_yellow,
            ratio_sum_red = sum_red_teaminput/sum_red,
            ratio_mean_red = mean_red_teaminput/mean_red,
-           ratio_sd_red = sd_red_teaminput/sd_red,
-    ) %>%
+           ratio_sd_red = sd_red_teaminput/sd_red) %>%
     as.data.frame()
   
   # - slope of regression
-  if(nrow(stats_data) >= 10){
-    
-    beta_slope <- stats_data %>% 
-      select(created_at, HomeTeam, AwayTeam, FTR, FTHG, FTAG) %>%
-      arrange(created_at) %>%
-      mutate(index = row_number(),
-             index_sq = row_number() * row_number()) %>%
-      mutate(scored_goals = cumsum(replace(FTAG, !(AwayTeam %in% team_input), 0) + replace(FTHG, !(HomeTeam %in% team_input), 0))) %>%
-      do(tidy(lm(scored_goals ~ index + index_sq, data = .))) %>%
-      filter(term %in% "index") %>%
-      select(estimate)
-    
-    beta_slope <- as.numeric(beta_slope$estimate)
-    
-  }else{
-    beta_slope <- NA
-  }
+  beta_slope <- stats_data %>% 
+    select(created_at, HomeTeam, AwayTeam, FTR, FTHG, FTAG) %>%
+    arrange(created_at) %>%
+    mutate(index = row_number(),
+           index_sq = row_number() * row_number()) %>%
+    mutate(scored_goals = cumsum(replace(FTAG, !(AwayTeam %in% team_input), 0) + replace(FTHG, !(HomeTeam %in% team_input), 0))) %>%
+    do(tidy(lm(scored_goals ~ index + index_sq, data = .))) %>%
+    filter(term %in% "index") %>%
+    select(estimate)
+  
+  beta_slope <- as.numeric(beta_slope$estimate)
   
   historical_stats$beta_slope <- beta_slope
   # ----- Get Historical Variables ----- #
@@ -342,34 +327,34 @@ if(nrow(dates_all) > 0){
                        .packages = c("data.table", "dplyr", 
                                      "tidymodels", "tidyr", 
                                      "tidyverse")) %dopar% {
-                         
-                         master_subset <- master_data %>% 
-                           filter(HomeTeam %in% dates_all$team_input[i] | 
-                                    AwayTeam %in% dates_all$team_input[i])
-                         
-                         temp_result <- 
-                           lapply(c(seq.int(from = 10, to = 50, by = 5)), 
-                                  function(x) 
-                                    get_n_matches_statistics(
-                                      data_input = master_subset, 
-                                      team_input = dates_all$team_input[i], 
-                                      match_date = dates_all$created_at[i], 
-                                      number_matches = x))
-                         
-                         temp_data <- bind_rows(temp_result) %>% 
-                           as.data.frame() %>%
-                           summarise_all(., max, na.rm = TRUE) %>% 
-                           as.data.frame()
-                         
-                         temp_data[mapply(is.infinite, temp_data)] <- NA
-                         temp_data$created_at <- rep(dates_all$created_at[i], 
-                                                     nrow(temp_data))
-                         temp_data$team_input <- rep(dates_all$team_input[i], 
-                                                     nrow(temp_data))
-                         
-                         return(temp_data)
-                         # print(i)
-                       }
+                                       
+                                       master_subset <- master_data %>% 
+                                         filter(HomeTeam %in% dates_all$team_input[i] | 
+                                                  AwayTeam %in% dates_all$team_input[i])
+                                       
+                                       temp_result <- 
+                                         lapply(c(seq.int(from = 10, to = 50, by = 5)), 
+                                                function(x) 
+                                                  get_n_matches_statistics(
+                                                    data_input = master_subset, 
+                                                    team_input = dates_all$team_input[i], 
+                                                    match_date = dates_all$created_at[i], 
+                                                    number_matches = x))
+                                       
+                                       temp_data <- bind_rows(temp_result) %>% 
+                                         as.data.frame() %>%
+                                         summarise_all(., max, na.rm = TRUE) %>% 
+                                         as.data.frame()
+                                       
+                                       temp_data[mapply(is.infinite, temp_data)] <- NA
+                                       temp_data$created_at <- rep(dates_all$created_at[i], 
+                                                                   nrow(temp_data))
+                                       temp_data$team_input <- rep(dates_all$team_input[i], 
+                                                                   nrow(temp_data))
+                                       
+                                       return(temp_data)
+                                       # print(i)
+                                     }
   end_time <- Sys.time()
   stopCluster(cl)
   # - Parallel Version
