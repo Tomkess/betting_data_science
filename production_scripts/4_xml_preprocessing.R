@@ -1,11 +1,10 @@
-# ----- Pre-processing the XML Feed Data -----
-
 # ---- Library Loading -----
 library(dplyr)
 library(data.table)
 
 rm(list = ls())
 gc()
+which_sharpe <- "xml_data"
 
 # ----- Set Working Directory -----
 setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
@@ -47,22 +46,24 @@ football_leagues <-
 
 # ----- Loading the Data -----
 load("data/production_data/1_tipsport_feedxml.RData")
-data_xml <- data_temp
-rm(data_temp)
-
-load(file = "data/production_data/0_data_download.RData")
+load("data/production_data/0_data_download.RData")
 
 # ----- Select only specific leagues and two types of bets - win/loss, +/-2.5 ----
-data_subset <- data_xml %>%
+data_subset <- data_temp %>%
   filter(sport_category %in% "Fotbal - muži" &
            (eventtypedescription %in% c("Vítěz", "Počet gólů (bodů)")) &
-           sport_league %in% football_leagues & gamepart %in% "1/1" & 
-           !(type %in% "x") & fullname %in% c("Méně než 2.5", "Více než 2.5")) %>%
-  rbind(., data_xml %>%
+           sport_league %in% football_leagues & 
+           !(type %in% c("x", "o", "u"))) %>%
+  rbind(., data_temp %>%
           filter(sport_category %in% "Fotbal - muži" &
-                   eventtypedescription %in% c("Vítěz") &
-                   sport_league %in% football_leagues & gamepart %in% "1/1" & 
-                   !(type %in% "x")))
+                   eventtypedescription %in% c("Vítěz", "Počet gólů (bodů)") &
+                   sport_league %in% football_leagues & 
+                   !(type %in% c("x", "o", "u")))) %>%
+  as.data.frame() %>%
+  select(fullname) %>% 
+  distinct() %>% 
+  mutate(correct = 1) %>% 
+  rename(team_input = fullname)
 
 # ----- Synchronizing the team Names -----
 mapping_table <- master_data %>%
@@ -73,14 +74,11 @@ mapping_table <- master_data %>%
           rename(team_input = AwayTeam)) %>%
   rowwise() %>%
   mutate(team_input = trimws(team_input, which = "both")) %>%
-  distinct()
-
-mapping_table <- mapping_table %>%
-  left_join(., data_subset %>% 
-              select(fullname) %>% 
-              distinct() %>% 
-              mutate(correct = 1) %>% 
-              rename(team_input = fullname))
+  distinct() %>% 
+  left_join(., data_subset) %>%
+  select(-Div) %>%
+  distinct() %>%
+  as.data.frame()
 
 mapping_table$fullname <- NA
 mapping_table$correct[is.na(mapping_table$correct)] <- 0
@@ -88,9 +86,9 @@ mapping_table$fullname[mapping_table$correct == 1] <-
   mapping_table$team_input[mapping_table$correct == 1]
 
 # - English League: E
-mapping_table$fullname[mapping_table$team_input %in% "Man City"] <- "Manchester C."
-mapping_table$fullname[mapping_table$team_input %in% "Man United"] <- "Manchester U."
-mapping_table$fullname[mapping_table$team_input %in% "Crystal Palace"] <- "Crystal P."
+mapping_table$fullname[mapping_table$team_input %in% "Man City"] <- "Manchester City"
+mapping_table$fullname[mapping_table$team_input %in% "Man United"] <- "Manchester United"
+mapping_table$fullname[mapping_table$team_input %in% "Crystal Palace"] <- "Crystal Palace"
 mapping_table$fullname[mapping_table$team_input %in% "Sheffield United"] <- "Sheffield Utd."
 mapping_table$fullname[mapping_table$team_input %in% "Nott'm Forest"] <- "Nottingham"
 mapping_table$fullname[mapping_table$team_input %in% "Bristol City"] <- "Bristol C."
@@ -222,5 +220,4 @@ mapping_table$fullname[mapping_table$team_input %in% "St Mirren"] <- "St. Mirren
 mapping_table$fullname[mapping_table$team_input %in% "St Johnstone"] <- "St. Johnstone"
 mapping_table$fullname[mapping_table$team_input %in% "Stirling"] <- "Stirling Albion"
 
-save(mapping_table, 
-     file = "data/production_data/4_xml_preprocessing.RData")
+save(mapping_table, file = "data/production_data/4_xml_preprocessing.RData")

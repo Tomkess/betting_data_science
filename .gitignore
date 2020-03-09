@@ -11,3 +11,4 @@ vignettes/*
 data/*
 *.pdf
 documentation/*
+*.stan

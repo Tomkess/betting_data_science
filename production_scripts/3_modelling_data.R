@@ -130,10 +130,8 @@ training_winner <- master_data %>%
 
 recipe_winner <- recipe(training_winner, formula = win_loss ~ .,)
 recipe_winner <- recipe_winner %>%
-  # step_nzv(all_predictors()) %>%
   step_meanimpute(all_predictors()) %>%
   step_range(min = 0, max = 1, all_predictors()) %>%
-  # step_pca(contains("5"), num_comp = 45, role = "predictor") %>%
   prep(retain = TRUE)
 
 prepared_winner <- recipe_winner %>%
