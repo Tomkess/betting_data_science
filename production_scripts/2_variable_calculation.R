@@ -173,6 +173,7 @@ if(nrow(dates_all) > 0){
                                      }
   end_time <- Sys.time()
   stopCluster(cl)
+  
   # - Parallel Version
   
   # ----- Save Data ----- #
