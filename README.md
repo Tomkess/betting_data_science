@@ -1,1 +1,1 @@
-# betting_data_science
+# Betting Data Science Project
