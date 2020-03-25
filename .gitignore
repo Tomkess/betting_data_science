@@ -9,6 +9,7 @@ data/*
 *.txt
 vignettes/*
 data/*
-*.pdf
 documentation/*
 *.stan
+0_etl/db_temp/*
+1_variable_calculator/db_temp/*
