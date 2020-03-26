@@ -153,6 +153,7 @@ predictors_data <-
   rename(hist_match = data)
 
 rm(master_data)
+rm(list = ls()[!(ls() %in% c("match_data", "predictors_data"))])
 gc()
 
 # ----- Save Data -----
