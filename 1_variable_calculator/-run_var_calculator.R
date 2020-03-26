@@ -27,4 +27,4 @@ if(Sys.info()[['nodename']] %in% c("PETER")){
 }
 
 # ----- Run A Script -----
-source("1_variable_calculator/1_variable_calculation.R")
+source("1_variable_calculator/0_variable_calculation.R")
