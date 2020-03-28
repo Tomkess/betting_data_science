@@ -3,11 +3,11 @@ title: "Team Names Unification"
 output: 
   flexdashboard::flex_dashboard:
     orientation: rows
-    vertical_layout: scroll
+    vertical: scroll
 runtime: shiny
 ---
 
-```{r setup, include = F, cache = TRUE}
+```{r setup, include = F}
 knitr::opts_chunk$set(echo = TRUE)
 
 library(flexdashboard)
@@ -41,7 +41,7 @@ load(paste(get("working_directory")[["4finance_PC"]], "/",
 modDtUi <- function(id){
   ns = NS(id)
   DT::dataTableOutput(ns('x1'))
-} 
+}
 
 modDt <-  function(input, output, session, data){
   output$x1 <- 
@@ -52,7 +52,7 @@ modDt <-  function(input, output, session, data){
                                           list(columns = 
                                                  c(1, 2))), 
                         server = TRUE, 
-                        options = list(scrollY = "600px", 
+                        options = list(scrollY = "400px", 
                                        paging = T,
                                        pageLength = 5,
                                        scrollX = TRUE, 
@@ -75,8 +75,6 @@ modDt <-  function(input, output, session, data){
 }
 ```
 
-League Names
-=====================================
 ```{r Sorting League Names, eval = T, include = T, comment = F, echo = F}
 get_files <- 
   list.files(paste(get("working_directory")[["4finance_PC"]], "/", 
@@ -94,12 +92,18 @@ if("league_mapping.RData" %in% get_files){
                "Tipsport_Changed" = get("league_mapping")$tipsport_data) %>%
     mutate_if(., is.factor, as.character)
 }
+```
 
-modDtUi("editable")
-changed_league <- 
-  callModule(modDt, "editable", 
-             data = league_data)
+Row {data-height=700}
+-----------------------------------------------------------------------
 
+### League Dictionary
+```{r Editable League Names, eval = T, include = T, comment = F, echo = F}
+modDtUi("editable_league")
+changed_league <- callModule(modDt, "editable_league", data = league_data)
+```
+
+```{r Save Leage Changes, eval = T, include = T, comment = F, echo = F}
 # ----- Save Changes -----
 saved_changes <- reactive({
   upload_temp <- changed_league() %>% as.data.frame()
@@ -108,7 +112,6 @@ saved_changes <- reactive({
 })
 ```
 
------------------------------------------------------------------------
 ```{r Saving League Mapping, eval = T, include = T, comment = F, echo = F}
 # ----- Save Button -----
 actionButton("upload_data", h4("Store League Mapping"))
@@ -118,8 +121,7 @@ upload_changes <- eventReactive(input$upload_data, {
     saved_changes() %>% 
     as.data.frame()
   
-  save(league_mapping, 
-       file = paste(get("league_mapping")$mapping_storage))
+  save(league_mapping, file = paste(get("league_mapping")$mapping_storage))
 })
 
 renderText({
@@ -127,9 +129,7 @@ renderText({
 })
 ```
 
-Team Names
-=====================================
-```{r Tipsport Teams, eval = T, include = T, comment = F, echo = F}
+```{r Tipsport Teams, eval = T, include = F, comment = F, echo = F}
 tipsport_teams <-
   data_temp %>%
   filter(sport_category %in% "Fotbal - muži" &
@@ -148,63 +148,82 @@ tipsport_teams <-
   rename(`Team Name [Tipsport]` = fullname,
          `Tipsport League` = sport_league) %>%
   as.data.frame()
-
-save(tipsport_teams, 
-     file = paste(get("working_directory")[["4finance_PC"]], "/", 
-                  get("data_location")$league_mapping, "/tipsport_teams.RData", 
-                  sep = ""))
 ```
 
 ```{r Results Teams, eval = T, include = T, comment = F, echo = F}
-results_teams <- 
-  master_data %>%
-  select(Div, HomeTeam, AwayTeam) %>%
-  distinct() %>%
-  gather(is_home, team, HomeTeam, AwayTeam) %>%
-  select(-is_home) %>%
-  rename(`Results League` = Div,
-         `Results Team` = team) %>%
-  distinct() %>%
+get_team_files <- 
+  list.files(paste(get("working_directory")[["4finance_PC"]], "/", 
+                   get("data_location")$league_mapping, sep = ""))
+if("team_mapping.RData" %in% get_team_files){
+  load(paste(get("working_directory")[["4finance_PC"]], "/", 
+             get("data_location")$league_mapping, 
+             "/team_mapping.RData", sep = ""))
   
-  left_join(., league_data %>% as.data.frame(), 
-            by = c("Results League" = "Results")) %>%
-  
-  left_join(., tipsport_teams %>% 
-              mutate(`Joined` = 1) %>%
-              as.data.frame(), 
-            by = c("Tipsport_Changed" = "Tipsport League", 
-                   "Results Team" = "Team Name [Tipsport]")) %>%
-  
-  rowwise() %>%
-  mutate(`Tipsport Team [Changed]` = 
-           ifelse(is.na(Joined), NA, `Results Team`))
+  results_teams <- team_mapping
+}else{
+  results_teams <- 
+    master_data %>%
+    select(Div, HomeTeam, AwayTeam) %>%
+    distinct() %>%
+    gather(is_home, team, HomeTeam, AwayTeam) %>%
+    select(-is_home) %>%
+    rename(`Results League` = Div,
+           `Results Team` = team) %>%
+    distinct() %>%
+    
+    left_join(., league_data %>% as.data.frame(), 
+              by = c("Results League" = "Results")) %>%
+    
+    left_join(., tipsport_teams %>% 
+                mutate(`Joined` = 1) %>%
+                as.data.frame(), 
+              by = c("Tipsport_Changed" = "Tipsport League", 
+                     "Results Team" = "Team Name [Tipsport]")) %>%
+    
+    rowwise() %>%
+    mutate(`Tipsport Team [Changed]` = 
+             ifelse(is.na(Joined), NA, `Results Team`)) %>%
+    mutate(Joined = replace_na(Joined, 0))
+}
+```
 
+```{r Removals, eval = T, include = F}
+rm(data_temp)
+gc()
+
+rm(master_data)
+gc()
+```
+
+Row {data-height=700}
+-----------------------------------------------------------------------
+
+### Joined Table
+```{r Editable Team Names, eval = T, include = T, comment = F, echo = F}
 modDtUi("editable")
-changed_team <- 
-  callModule(modDt, "editable", 
-             data = results_teams)
+changed_team <- callModule(modDt, "editable", data = results_teams)
+```
 
+```{r Save Joined Changes, eval = T, include = T, comment = F, echo = F}
 # ----- Save Changes -----
 saved_team_changes <- reactive({
-  upload_temp <- changed_team() %>% as.data.frame()
-  
-  return(upload_temp)
+  upload_team <- changed_team() %>% as.data.frame()
+  return(upload_team)
 })
 ```
 
------------------------------------------------------------------------
+### Tipsport Teams
 ```{r Tipsport Helper Table, eval = T, include = T, comment = F, echo = F}
-DT::renderDataTable({
-  DT::datatable(tipsport_teams %>%
-                  as.data.frame(), 
-                
-                options = list(scrollY = "500px", 
-                               paging = TRUE,
-                               pageLength = 5,
-                               scrollX = TRUE, 
-                               searchHighlight = TRUE,
-                               fixedColumns = list(leftColumns = 2)), 
-                filter = "top", class = "cell-border stripe")})
+DT::datatable(tipsport_teams %>%
+                as.data.frame(), 
+              
+              options = list(scrollY = "400px", 
+                             paging = TRUE,
+                             pageLength = 5,
+                             scrollX = TRUE, 
+                             searchHighlight = TRUE,
+                             fixedColumns = list(leftColumns = 2)), 
+              filter = "top", class = "cell-border stripe")
 ```
 
 ```{r Saving Team Mapping, eval = T, include = T, comment = F, echo = F}
@@ -216,8 +235,7 @@ upload_team_changes <- eventReactive(input$upload_team_data, {
     saved_team_changes() %>% 
     as.data.frame()
   
-  save(team_mapping, 
-       file = get("team_mapping")$mapping_storage)
+  save(team_mapping, file = get("team_mapping")$mapping_storage)
 })
 
 renderText({
