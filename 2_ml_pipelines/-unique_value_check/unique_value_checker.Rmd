@@ -47,7 +47,7 @@ modDt <-  function(input, output, session, data){
   output$x1 <- 
     DT::renderDataTable(data, 
                         selection = "none", 
-                        editable = list(target = "cell",
+                        editable = list(target = "all",
                                         disable = 
                                           list(columns = 
                                                  c(1, 2))), 
@@ -56,7 +56,7 @@ modDt <-  function(input, output, session, data){
                                        paging = T,
                                        pageLength = 5,
                                        scrollX = TRUE, 
-                                       searchHighlight = TRUE,
+                                       searchHighlight = F,
                                        fixedColumns = list(leftColumns = 2)), 
                         filter = "top", class = "cell-border stripe") 
   proxy <- dataTableProxy("x1", session = session)
@@ -65,8 +65,12 @@ modDt <-  function(input, output, session, data){
     info = input$x1_cell_edit
     if (!is.null(info)) {
       str(info)
-      data[info$row, info$col] <<- DT::coerceValue(info$value,
-                                                   data[info$row, info$col])
+      data <<- DT::editData(data, info)
+      # for(i_nth in c(1:nrow(info))){
+      #   data[info$row[i_nth], info$col[i_nth]] <<-
+      #     DT::coerceValue(info$value[i_nth],
+      #                     data[info$row[i_nth], info$col[i_nth]])
+      # }
     }
     data
   }, ignoreNULL = FALSE)
@@ -221,7 +225,7 @@ DT::datatable(tipsport_teams %>%
                              paging = TRUE,
                              pageLength = 5,
                              scrollX = TRUE, 
-                             searchHighlight = TRUE,
+                             searchHighlight = F,
                              fixedColumns = list(leftColumns = 2)), 
               filter = "top", class = "cell-border stripe")
 ```
