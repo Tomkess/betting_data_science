@@ -5,7 +5,7 @@ library(tidyr)
 # ----- Get Modelling Data -----
 get_modellingdata <- function(.data) {
   
-  cluster <- new_cluster(5)
+  cluster <- new_cluster(4)
   cluster_copy(cluster, "match_data")
   cluster_library(cluster, "purrr")
   cluster_library(cluster, "dplyr")
@@ -49,4 +49,5 @@ get_modellingdata <- function(.data) {
   return(test_league)
 }
 
-modelling_data <- get_modellingdata(test %>% filter(league %in% "E0"))
+# ----- Example -----
+# modelling_data <- get_modellingdata(test %>% filter(league %in% "E0"))
