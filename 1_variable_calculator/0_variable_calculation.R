@@ -22,6 +22,7 @@ match_data <-
          -IWH, -IWD, -IWA, -PSH, -PSD, -PSA, 
          -WHH, -WHD, -WHA, -VCH, -VCD, -VCA,
          -B365.2.5, -B365.2.5.1, -P.2.5, -P.2.5.1, -GB.2.5, -GB.2.5.1) %>%
+  # rowwise() %>%
   mutate(is_home = recode(is_home, "HomeTeam" = 1, "AwayTeam" = 0)) %>%
   
   # - Create match result
@@ -39,8 +40,6 @@ match_data <-
          n_corners = case_when(is_home == 1 ~ HC, is_home == 0 ~ AC),
          n_yellow_cards = case_when(is_home == 1 ~ HY, is_home == 0 ~ AY),
          n_red_cards = case_when(is_home == 1 ~ HR, is_home == 0 ~ AR)) %>%
-  select(-FTR, -FTHG, -FTAG, -HS, -AS, -HST, -AST, -HF, -AF, -HC, -AC, 
-         -HY, -AY, -HR, -AR) %>%
   
   # - Create derived variables
   mutate(r_shots_goals = n_shots/(n_goals + 1),
@@ -82,14 +81,22 @@ match_data <-
          n_overall_strength_wa = 
            100 + cumsum(match_result * abs(is_home - 1)/(n_goals + 1))) %>%
   
+  # - De-Select unwanted columns
   select(-B365H, -B365D, -B365A, -BWH, -BWD, -BWA, 
          -IWH, -IWD, -IWA, -PSH, -PSD, -PSA, 
          -WHH, -WHD, -WHA, -VCH, -VCD, -VCA,
          -B365.2.5, -B365.2.5.1, -P.2.5, -P.2.5.1, -GB.2.5, -GB.2.5.1) %>%
+  select(-FTR, -FTHG, -FTAG, -HS, -AS, -HST, -AST, -HF, -AF, -HC, -AC, 
+         -HY, -AY, -HR, -AR) %>%
+  as.data.frame() %>%
+  
+  # - replace infinite values
+  mutate_if(is.numeric, function(x) ifelse(is.infinite(x), NA, x)) %>%
   
   # - Replacing missing values with column mean
   mice(., m = 5, method = "mean", printFlag = T) %>%
-  complete(.)
+  complete(.) %>%
+  as.data.frame()
 
 # ----- Calculate predictors -----
 predictors_data <- 
@@ -153,7 +160,7 @@ predictors_data <-
   rename(hist_match = data)
 
 rm(master_data)
-rm(list = ls()[!(ls() %in% c("match_data", "predictors_data"))])
+# rm(list = ls()[!(ls() %in% c("match_data", "predictors_data", "dest_path"))])
 gc()
 
 # ----- Save Data -----
