@@ -3,19 +3,16 @@ library(data.table)
 library(dplyr)
 library(tidyverse)
 library(xgboost)
-library(parallel)
-library(parallelMap)
-library(yardstick)
-library(broom)
-library(recipes)
-library(fastDummies)
 library(rBayesianOptimization)
 
 # ----- Set Working Directory -----
 setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
 
-# ----- Load Modelling Data -----
+# ----- Load Modelling and Match Data -----
 load("2_ml_pipelines/db_temp/modelling_data.RData")
+load("1_variable_calculator/db_temp/1_variable_calculator.RData")
+
+rm(predictors_data)
 
 # ----- Model COnfiguration -----
 test_date <- "2018-06-01"
