@@ -1,6 +1,9 @@
 library(h2o)
 h2o.init()
 
+# ----- Set Working Directory -----
+setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+
 # ----- Fit bayesian glm model using the package arm -----
 traindata <- 
   modelling_data %>%
