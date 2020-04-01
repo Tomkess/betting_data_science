@@ -20,6 +20,7 @@ rm(predictors_data)
 
 # ----- Model COnfiguration -----
 test_date <- "2018-06-01"
+train_date <- "2018-01-01"
 
 # ----- Create Weighting Structure -----
 modelling_data <- modelling_data %>%
@@ -38,10 +39,10 @@ for(i in unique(modelling_data$league)){
   
   print(i)
   
-  # ----- Fit XGBOOST Model using xgboost package -----
+  # ----- Fit bayezian glm model using the package arm -----
   traindata <- 
     modelling_data %>%
-    filter(match_date <= as.Date(test_date) & league %in% i) %>%
+    filter(match_date <= as.Date(train_date) & league %in% i) %>%
     dplyr::select(-match_date, -league) %>%
     
     # - increase the sample based on the weights
@@ -66,7 +67,7 @@ for(i in unique(modelling_data$league)){
   train_svd <- as.data.frame(train_svd)
   names(train_svd) <- paste("comp_", c(1:15), sep = "")
   
-  normFunc <- function(x){(x-mean(x, na.rm = T))/sd(x, na.rm = T)}
+  normFunc <- function(x){ (x - mean(x, na.rm = T))/sd(x, na.rm = T)}
   
   train_svd <- train_svd %>%
     mutate_all(normFunc) %>%
@@ -84,5 +85,44 @@ for(i in unique(modelling_data$league)){
   print(i)
 }
 
-save(list = c("model_output"), 
+# ----- Fit General Model -----
+traindata <- 
+  modelling_data %>%
+  filter(match_date <= as.Date(train_date)) %>%
+  dplyr::select(-match_date, -league) %>%
+  
+  # - increase the sample based on the weights
+  mutate(i_row = row_number()) %>%
+  group_by(i_row) %>%
+  do(sample_n(., floor(m_weights/2), replace = TRUE)) %>%
+  as.data.frame() %>%
+  
+  # - de - select the columns
+  dplyr::select(-i_row, -m_weights) %>%
+  as.data.frame()
+
+svd_temp <- svd(traindata %>% 
+                  dplyr::select(-team, -match_result, -n_goals), 
+                LINPACK = FALSE)
+
+U15 <- as.matrix(svd_temp$u[, 1:15])
+d15 <- as.matrix(diag(svd_temp$d)[1:15, 1:15])
+V15 <- as.matrix(svd_temp$v[1:15, 1:15])
+
+train_svd <- U15 %*% d15 %*% t(V15)
+train_svd <- as.data.frame(train_svd)
+names(train_svd) <- paste("comp_", c(1:15), sep = "")
+
+normFunc <- function(x){ (x - mean(x, na.rm = T))/sd(x, na.rm = T)}
+
+train_svd <- train_svd %>%
+  mutate_all(normFunc) %>%
+  cbind(., traindata %>% 
+          dplyr::select(n_goals))
+
+model_general <- bayesglm(n_goals ~ ., 
+                          data = train_svd,
+                          family = poisson(link = "log"))
+
+save(list = c("model_output", "model_general"), 
      file = "2_ml_pipelines/db_temp/5_hierarchical_bayes.RData")
