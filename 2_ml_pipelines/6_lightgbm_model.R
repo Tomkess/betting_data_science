@@ -40,7 +40,7 @@ traindata <-
   as.data.frame() %>%
   
   # - de - select the columns
-  dplyr::select(-i_row, -m_weights) %>%
+  dplyr::select(-i_row, -m_weights, -league, -team) %>%
   as.data.frame()
 
 testdata <- 
@@ -50,7 +50,7 @@ testdata <-
   dplyr::select(-match_date) %>%
   
   # - de - select the columns
-  dplyr::select(-m_weights) %>%
+  dplyr::select(-m_weights, -league, -team) %>%
   as.data.frame()
 
 rm(modelling_data)
@@ -63,18 +63,15 @@ dtrain <-
                           select(-match_result, -n_goals) %>% 
                           as.matrix(), 
                         Class = "sparseMatrix"), 
-              label = traindata$n_goals, 
-              categorical_feature = c("team", "league"))
+              label = traindata$n_goals)
 
 dtest <- 
   lgb.Dataset.create.valid(dtrain, 
                            data = as(testdata %>% 
-                                       select(-match_result, -team, 
-                                              -n_goals) %>% 
+                                       select(-match_result, -n_goals) %>% 
                                        as.matrix(), 
                                      Class = "sparseMatrix"), 
-                           label = testdata$n_goals, 
-                           categorical_feature = c("team", "league"))
+                           label = testdata$n_goals)
 
 # ----- Set Parameters -----
 valids <- list(test = dtest)
@@ -107,4 +104,5 @@ model <-
 
 # json_model <- lgb.dump(model)
 
+gc()
 saveRDS.lgb.Booster(model, "2_ml_pipelines/db_temp/5_lightgbm_model.rds")
