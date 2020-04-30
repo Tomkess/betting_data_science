@@ -1,0 +1,17 @@
+default:
+  data_location:
+    results_data: "0_etl/db_temp/0_results_download.RData"
+    tipsport_data: "0_etl/db_temp/1_tipsport_feedxml.RData"
+    league_mapping: "2_ml_pipelines/-unique_value_check/mapping_storage"
+  working_directory:
+    4finance_PC: "C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science"
+  league_mapping:
+    results_data: ["E0", "E1", "E2", "E3", "EC", "SC0", "SC1", "SC2", "SC3", "D1", "D2", "I1", "I2", "SP1", "SP2", "F1", "F2", 
+    "N1", "B1", "P1", "T1", "G1"]
+    tipsport_data: ["1. anglická liga", "2. anglická liga", "3. anglická liga", "4. anglická liga", "5. anglická liga",
+    "1. skotská liga", "2. skotská liga", "3. skotská liga", "4. skotská liga", "1. německá liga", "2. německá liga", 
+    "1. italská liga", "2. italská liga", "1. španělská liga", "2. španělská liga", "1. francouzská liga", "2. francouzská liga",
+    "1. nizozemská liga", "1. belgická liga", "1. portugalská liga", "1. turecká liga", "1. řecká liga"]
+    mapping_storage: "mapping_storage/league_mapping.RData"
+  team_mapping:
+    mapping_storage: "mapping_storage/team_mapping.RData"
