@@ -62,7 +62,8 @@ sharpe_fct <- function(fr){
 for(i in names(xgboost_model_output)){
   
   modelling_data$xgboost_pred <- 
-    get_pred(modelling_input = modelling_data, 
+    get_pred(modelling_input = modelling_data %>% 
+               select(-starts_with("xgboost_")), 
              i_league = "E0", 
              i_model_list = xgboost_model_output)
   
@@ -83,7 +84,7 @@ colnames_basic <-   c("league", "match_date", "is_home",
 result_data <- 
   modelling_data %>%
   
-  select(one_of(colname_input)) %>%
+  dplyr::select(one_of(colname_input)) %>%
   gather("model", "pred", -all_of(colnames_basic)) %>%
   
   rowwise() %>%
@@ -107,7 +108,7 @@ round_data <- round_data %>%
   
   mutate(from_date = as.Date(paste(lag_year, "-07", "-01", sep = "")),
          to_date = as.Date(paste(year, "-07", "-31", sep = ""))) %>%
-  select(-year, -lag_year)
+  dplyr::select(-year, -lag_year)
 
 result_data <- result_data %>%
   as.data.frame() %>%
@@ -120,7 +121,7 @@ result_data <- result_data %>%
   
   unnest(c(season)) %>%
   as.data.frame() %>%
-  select(-from_date, -to_date) %>%
+  dplyr::select(-from_date, -to_date) %>%
   
   group_by(league, season, team) %>%
   arrange(match_date) %>%
@@ -143,17 +144,17 @@ master_temp <- master_data %>%
          total_goals = FTAG + FTHG,
          goals_result = ifelse(FTAG + FTHG > 2.5, "Over 2.5", "Under 2.5")) %>%
   
-  select(Div, HomeTeam, AwayTeam, created_at, 
-         FTR, total_goals, goals_result,
-         
-         # - select odds columns A, H, D
-         avg_odds_a, B365A, BWA, IWA, PSA, WHA, VCA,
-         avg_odds_h, B365H, BWH, IWH, PSH, WHH, VCH,
-         avg_odds_d, B365D, BWD, IWD, PSD, WHD, VCD,
-         
-         # - select columns with 2.5 and 2.5.1 odds
-         avg_odds_25, B365.2.5, P.2.5, GB.2.5,
-         avg_odds_251, B365.2.5.1, P.2.5.1, GB.2.5.1)
+  dplyr::select(Div, HomeTeam, AwayTeam, created_at, 
+                FTR, total_goals, goals_result,
+                
+                # - select odds columns A, H, D
+                avg_odds_a, B365A, BWA, IWA, PSA, WHA, VCA,
+                avg_odds_h, B365H, BWH, IWH, PSH, WHH, VCH,
+                avg_odds_d, B365D, BWD, IWD, PSD, WHD, VCD,
+                
+                # - select columns with 2.5 and 2.5.1 odds
+                avg_odds_25, B365.2.5, P.2.5, GB.2.5,
+                avg_odds_251, B365.2.5.1, P.2.5.1, GB.2.5.1)
 
 rm(round_data)
 rm(colname_input)
@@ -175,20 +176,20 @@ master_backtesting <- master_temp %>%
             by = c("Div" = "league", 
                    "created_at" = "match_date", 
                    "AwayTeam" = "team")) %>%
-  select(-is_home) %>%
+  dplyr::select(-is_home) %>%
   rename(pred_A = pred) %>%
   
   # - Join Home Prediction
   left_join(., result_data %>%
               as.data.frame() %>%
-              select(league, match_date, team, pred, is_home) %>% 
+              dplyr::select(league, match_date, team, pred, is_home) %>% 
               filter(is_home == 1) %>%
               as.data.frame() %>%
               distinct(), 
             by = c("Div" = "league", 
                    "created_at" = "match_date", 
                    "HomeTeam" = "team")) %>%
-  select(-is_home, -league_model) %>%
+  dplyr::select(-is_home, -league_model) %>%
   rename(pred_H = pred) %>%
   
   as.data.frame() %>%
@@ -258,7 +259,7 @@ backtesting_output <-
                                    "prob_a" = prob_a,
                                    "prob_d" = prob_d))
                })) %>%
-  select(-poisson_data) %>%
+  dplyr::select(-poisson_data) %>%
   unnest(c(pred_prob, match_data)) %>%
   
   group_by(Div, season, round) %>%
@@ -297,10 +298,10 @@ backtesting_output <-
                         ifelse(prob_25 > prob_251, 
                                coalesce(B365.2.5, P.2.5, GB.2.5), 
                                coalesce(B365.2.5.1, P.2.5.1, GB.2.5.1))) %>%
-               select(HomeTeam, AwayTeam, goals_result, 
-                      my_pred_result, my_pred, 
-                      payoff_B365, payoff_P, payoff_GB, 
-                      payoff_avg, payoff_coalesce)
+               dplyr::select(HomeTeam, AwayTeam, goals_result, 
+                             my_pred_result, my_pred, 
+                             payoff_B365, payoff_P, payoff_GB, 
+                             payoff_avg, payoff_coalesce)
              
              return(data_temp)
            }))

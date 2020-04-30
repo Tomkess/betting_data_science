@@ -82,27 +82,13 @@ params <- list(objective = "poisson",
                num_leaves = 15)
 
 # ----- Train Model -----
-model <- 
-  lgb.train(params = params
-            , data = dtrain
-            , nrounds = 100L
-            , valids = valids
-            , min_data = 1L
-            , learning_rate = 0.25
-            , early_stopping_rounds = 5L)
-
-# - Get the interpretation of the model for each row
-
-# interpretation <-
-#   lgb.interprete(model = model,
-#                  data = as(testdata %>%
-#                              select(-match_result, -team, -n_goals) %>%
-#                              as.matrix(),
-#                            Class = "sparseMatrix"), idxset = 1:20)
-
-# lgb.plot.interpretation(interpretation[[2]], top_n = 10)
-
-# json_model <- lgb.dump(model)
+model <- lgb.train(params = params
+                   , data = dtrain
+                   , nrounds = 100L
+                   , valids = valids
+                   , min_data = 1L
+                   , learning_rate = 0.25
+                   , early_stopping_rounds = 5L)
 
 gc()
 saveRDS.lgb.Booster(model, "2_ml_pipelines/db_temp/5_lightgbm_model.rds")

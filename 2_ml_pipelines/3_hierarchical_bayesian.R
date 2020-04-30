@@ -18,6 +18,9 @@ load("1_variable_calculator/db_temp/1_variable_calculator.RData")
 
 rm(predictors_data)
 
+# ----- Define Neccessary Function -----
+normFunc <- function(x){ (x - mean(x, na.rm = T))/sd(x, na.rm = T)}
+
 # ----- Model COnfiguration -----
 test_date <- "2018-06-01"
 train_date <- "2018-01-01"
@@ -39,7 +42,6 @@ for(i in unique(modelling_data$league)){
   
   print(i)
   
-  # ----- Fit bayezian glm model using the package arm -----
   traindata <- 
     modelling_data %>%
     filter(match_date <= as.Date(train_date) & league %in% i) %>%
@@ -55,34 +57,25 @@ for(i in unique(modelling_data$league)){
     dplyr::select(-i_row, -m_weights) %>%
     as.data.frame()
   
-  svd_temp <- svd(traindata %>% 
-                    dplyr::select(-team, -match_result, -n_goals), 
-                  LINPACK = FALSE)
+  svd_temp <- 
+    svd(traindata %>% 
+          dplyr::select(-team, -match_result, -n_goals), LINPACK = FALSE)
   
-  U15 <- as.matrix(svd_temp$u[, 1:15])
-  d15 <- as.matrix(diag(svd_temp$d)[1:15, 1:15])
-  V15 <- as.matrix(svd_temp$v[1:15, 1:15])
-  
-  train_svd <- U15 %*% d15 %*% t(V15)
+  train_svd <- 
+    as.matrix(svd_temp$u[, 1:15]) %*% 
+    as.matrix(diag(svd_temp$d)[1:15, 1:15]) %*% 
+    t(as.matrix(svd_temp$v[1:15, 1:15]))
   train_svd <- as.data.frame(train_svd)
   names(train_svd) <- paste("comp_", c(1:15), sep = "")
   
-  normFunc <- function(x){ (x - mean(x, na.rm = T))/sd(x, na.rm = T)}
-  
   train_svd <- train_svd %>%
-    mutate_all(normFunc) %>%
     cbind(., traindata %>% 
             dplyr::select(n_goals))
   
-  model_bayes_glm <- bayesglm(n_goals ~ ., 
-                              data = train_svd,
-                              family = poisson(link = "log"))
+  model_bayes_glm <- 
+    bayesglm(n_goals ~ ., data = train_svd, family = poisson(link = "log"))
   
   model_output[[i]] <- model_bayes_glm
-  save(list = c("model_output"), 
-       file = "2_ml_pipelines/db_temp/5_hierarchical_bayes.RData")
-  
-  print(i)
 }
 
 # ----- Fit General Model -----
@@ -101,19 +94,16 @@ traindata <-
   dplyr::select(-i_row, -m_weights) %>%
   as.data.frame()
 
-svd_temp <- svd(traindata %>% 
-                  dplyr::select(-team, -match_result, -n_goals), 
-                LINPACK = FALSE)
+svd_temp <- 
+  svd(traindata %>% dplyr::select(-team, -match_result, -n_goals), 
+      LINPACK = FALSE)
 
-U15 <- as.matrix(svd_temp$u[, 1:15])
-d15 <- as.matrix(diag(svd_temp$d)[1:15, 1:15])
-V15 <- as.matrix(svd_temp$v[1:15, 1:15])
-
-train_svd <- U15 %*% d15 %*% t(V15)
+train_svd <- 
+  as.matrix(svd_temp$u[, 1:15]) %*% 
+  as.matrix(diag(svd_temp$d)[1:15, 1:15]) %*% 
+  t(as.matrix(svd_temp$v[1:15, 1:15]))
 train_svd <- as.data.frame(train_svd)
 names(train_svd) <- paste("comp_", c(1:15), sep = "")
-
-normFunc <- function(x){ (x - mean(x, na.rm = T))/sd(x, na.rm = T)}
 
 train_svd <- train_svd %>%
   mutate_all(normFunc) %>%

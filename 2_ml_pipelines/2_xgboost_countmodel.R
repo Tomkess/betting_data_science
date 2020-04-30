@@ -14,7 +14,7 @@ load("1_variable_calculator/db_temp/1_variable_calculator.RData")
 
 rm(predictors_data)
 
-# ----- Model COnfiguration -----
+# ----- Model Configuration -----
 test_date <- "2018-06-01"
 train_date <- "2018-01-01"
 
@@ -73,107 +73,91 @@ modelling_data <- modelling_data %>%
                    "is_home" = "is_home", 
                    "team" = "team"))
 
-# ----- Fit Specific Model -----
-xgboost_model_output <- list()
-for(i in unique(modelling_data$league)){
-  
-  # i <- "E0"
-  
-  print(i)
-  print(Sys.time())
-  
-  # ----- Fit XGBOOST Model using xgboost package -----
-  xgboost_traindata <- 
-    modelling_data %>%
-    filter(match_date <= as.Date(train_date) & league %in% i) %>%
-    select(-match_date, -league) %>%
+# ----- Fit Model -----
 
-    # - increase the sample based on the weights
-    mutate(i_row = row_number()) %>%
-    group_by(i_row) %>%
-    do(sample_n(., floor(m_weights), replace = TRUE)) %>%
-    as.data.frame() %>%
-    
-    # - de - select the columns
-    select(-i_row, -m_weights) %>%
-    as.data.frame()
+# ----- Fit XGBOOST Model using xgboost package -----
+xgboost_traindata <- 
+  modelling_data %>%
+  filter(match_date <= as.Date(train_date)) %>%
+  select(-match_date, -league) %>%
   
-  xgboost_testdata <- 
-    modelling_data %>%
-    filter(match_date <= as.Date(test_date) &
-             match_date >= as.Date(train_date) & league %in% i) %>%
-    select(-match_date, -m_weights, -league) %>%
-    as.data.frame()
+  # # - increase the sample based on the weights
+  # mutate(i_row = row_number()) %>%
+  # group_by(i_row) %>%
+  # do(sample_n(., floor(m_weights/3), replace = TRUE)) %>%
+  # as.data.frame() %>%
   
-  dtrain <- 
-    xgb.DMatrix(data.matrix(xgboost_traindata %>% 
-                              select(-n_goals, -match_result, -team) %>% 
-                              as.data.frame()), 
-                label = xgboost_traindata$n_goals, 
-                missing = NA)
-  
-  dtest <- 
-    xgb.DMatrix(data.matrix(xgboost_testdata %>% 
-                              select(-n_goals, -match_result, -team) %>% 
-                              as.data.frame()), 
-                label = xgboost_testdata$n_goals, 
-                missing = NA)
-  
-  if(nrow(xgboost_testdata) > 0 & 
-     nrow(xgboost_traindata) > 0 & 
-     nrow(xgboost_traindata) > ncol(xgboost_traindata)){
-    
-    OPT_Res <- 
-      BayesianOptimization(xgb_cv_bayes,
-                           bounds = list(eta = c(0.01, 0.35),
-                                         max_depth = c(2L, 6L),
-                                         min_child_weight = c(1L, 10L),
-                                         gamma = c(0.0, 5.0),
-                                         alpha = c(0.0, 5.0),
-                                         lambda = c(0.0, 5.0)),
-                           init_grid_dt = NULL, 
-                           init_points = 20, 
-                           n_iter = 20,
-                           acq = "ucb", 
-                           kappa = 2.576, 
-                           eps = 0.0,
-                           verbose = TRUE)
-    
-    eta_opt <- OPT_Res$Best_Par[["eta"]]
-    maxdepth_opt <- OPT_Res$Best_Par[["max_depth"]]
-    minchildweight_opt <- OPT_Res$Best_Par[["min_child_weight"]]
-    gamma_opt <- OPT_Res$Best_Par[["gamma"]]
-    lambda_opt <- OPT_Res$Best_Par[["lambda"]]
-    alpha_opt <- OPT_Res$Best_Par[["alpha"]]
-    
-    cv_opt <- xgb.train(params = list(booster = "gbtree", 
-                                      eta = eta_opt,
-                                      max_depth = maxdepth_opt,
-                                      min_child_weight = minchildweight_opt,
-                                      subsample = 1, 
-                                      colsample_bytree = 1,
-                                      lambda = lambda_opt, 
-                                      alpha = alpha_opt,
-                                      gamma = gamma_opt,
-                                      objective = "count:poisson",
-                                      eval_metric = "poisson-nloglik"),
-                        
-                        data = dtrain,
-                        watchlist = list(test = dtest), 
-                        nrounds = 250,
-                        showsd = TRUE,
-                        early_stopping_rounds = 5, 
-                        maximize = F, 
-                        verbose = T)
-    
-    xgboost_model_output[[i]] <- cv_opt
-    save(list = c("xgboost_model_output"), 
-         file = "2_ml_pipelines/db_temp/5_xgboost_countmodel.RData")
-  }
-  
-  print(Sys.time())
-  print(i)
-}
+  # - de - select the columns
+  # select(-i_row, -m_weights) %>%
+  as.data.frame()
+
+xgboost_testdata <- 
+  modelling_data %>%
+  filter(match_date <= as.Date(test_date) &
+           match_date >= as.Date(train_date)) %>%
+  select(-match_date, -m_weights, -league) %>%
+  as.data.frame()
+
+dtrain <- 
+  xgb.DMatrix(data.matrix(xgboost_traindata %>% 
+                            select(-n_goals, -match_result, -team, -m_weights) %>% 
+                            as.data.frame()), 
+              label = xgboost_traindata$n_goals, 
+              weight = xgboost_traindata$m_weights,
+              missing = NA)
+
+dtest <- 
+  xgb.DMatrix(data.matrix(xgboost_testdata %>% 
+                            select(-n_goals, -match_result, -team) %>% 
+                            as.data.frame()), 
+              label = xgboost_testdata$n_goals, 
+              missing = NA)
+gc()
+
+OPT_Res <- 
+  BayesianOptimization(xgb_cv_bayes,
+                       bounds = list(eta = c(0.01, 0.35),
+                                     max_depth = c(2L, 6L),
+                                     min_child_weight = c(1L, 10L),
+                                     gamma = c(0.0, 5.0),
+                                     alpha = c(0.0, 5.0),
+                                     lambda = c(0.0, 5.0)),
+                       init_grid_dt = NULL, 
+                       init_points = 20, 
+                       n_iter = 20,
+                       acq = "ucb", 
+                       kappa = 2.576, 
+                       eps = 0.0,
+                       verbose = TRUE)
+
+eta_opt <- OPT_Res$Best_Par[["eta"]]
+maxdepth_opt <- OPT_Res$Best_Par[["max_depth"]]
+minchildweight_opt <- OPT_Res$Best_Par[["min_child_weight"]]
+gamma_opt <- OPT_Res$Best_Par[["gamma"]]
+lambda_opt <- OPT_Res$Best_Par[["lambda"]]
+alpha_opt <- OPT_Res$Best_Par[["alpha"]]
+
+cv_opt <- xgb.train(params = list(booster = "gbtree", 
+                                  eta = eta_opt,
+                                  max_depth = maxdepth_opt,
+                                  min_child_weight = minchildweight_opt,
+                                  subsample = 1, 
+                                  colsample_bytree = 1,
+                                  lambda = lambda_opt, 
+                                  alpha = alpha_opt,
+                                  gamma = gamma_opt,
+                                  objective = "count:poisson",
+                                  eval_metric = "poisson-nloglik"),
+                    
+                    data = dtrain,
+                    watchlist = list(test = dtest), 
+                    nrounds = 250,
+                    showsd = TRUE,
+                    early_stopping_rounds = 5, 
+                    maximize = F, 
+                    verbose = T)
+
+xgboost_model_output <- cv_opt
 
 rm(list = ls()[!(ls() %in% c("xgboost_model_output"))])
 gc()

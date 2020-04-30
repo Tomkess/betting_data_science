@@ -112,6 +112,9 @@ bet_strategy <- backtesting_output %>%
     d_temp <- df_input %>%
       arrange(t_id)
     
+    # d_temp <- bet_strategy$data[[2]] %>%
+    #   arrange(t_id)
+    
     profit_data <- 
       data.frame("t_id" = rep(0, length(unique(d_temp$t_id))),
                  "c_p_B365" = rep(0, length(unique(d_temp$t_id))),
@@ -154,7 +157,7 @@ bet_strategy <- backtesting_output %>%
         profit_data$c_p_coalesce[i] <- 
           profit_data$c_p_coalesce[i - 1] +
           sum(init_cap * d_temp$is_win_coalesce[d_temp$t_id == i])
-
+        
       }
     }
     
@@ -169,7 +172,7 @@ bet_strategy <- backtesting_output %>%
 
 ggplot(data = bet_strategy) +
   geom_line(aes(x = t_id, y = Profit, colour = Bookmaker)) +
-  facet_grid(. ~ Div) +
+  facet_grid(Div ~ .) +
   ggtitle("Cum Betting Profit - Dynamic Strategy") +
   xlab("Round") +
   ylab("Profit")
