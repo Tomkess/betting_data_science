@@ -22,7 +22,7 @@ if(Sys.info()[['nodename']] %in% c("CZIT-NTB-017")){
 
 if(Sys.info()[['nodename']] %in% c("PETER")){
   # - path on private ntb
-  setwd("C:/Users/Peter/Desktop/ds_project/betting_data_science")
+  setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
 }
 
 # ------ Sourcing the Scripts ------
