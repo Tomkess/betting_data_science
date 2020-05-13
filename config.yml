@@ -4,7 +4,7 @@ default:
     tipsport_data: "0_etl/db_temp/1_tipsport_feedxml.RData"
     league_mapping: "2_ml_pipelines/-unique_value_check/mapping_storage"
   working_directory:
-    4finance_PC: "C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science"
+    4finance_PC: "C:/Users/Peter/Desktop/ds_projects/betting_data_science"
   league_mapping:
     results_data: ["E0", "E1", "E2", "E3", "EC", "SC0", "SC1", "SC2", "SC3", "D1", "D2", "I1", "I2", "SP1", "SP2", "F1", "F2", 
     "N1", "B1", "P1", "T1", "G1"]
