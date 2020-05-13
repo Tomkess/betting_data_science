@@ -1,52 +1,44 @@
 library(purrr)
 library(multidplyr)
 library(tidyr)
+library(rlang)
+
+unnest_dt <- function(dt, col, id){
+  stopifnot(is.data.table(dt))
+  by <- substitute(id)
+  col <- substitute(unlist(col, recursive = FALSE))
+  dt[, eval(col), by = eval(by)]
+}
 
 # ----- Get Modelling Data -----
 get_modellingdata <- function(.data) {
   
-  cluster <- new_cluster(4)
-  cluster_copy(cluster, "match_data")
-  cluster_library(cluster, "purrr")
-  cluster_library(cluster, "dplyr")
-  cluster_library(cluster, "tidyr")
+  temp <- .data
+  match_data_temp <- match_data %>% 
+    filter(team %in% unique(temp$team))
   
-  test_league <- 
-    .data %>%
+  temp_hist_matches <- 
+    unnest_dt(as.data.table(temp), 
+              hist_match, 
+              list(sport, league, match_date, is_home, team, gp_suffix)) %>%
     as.data.frame() %>%
+    
+    left_join(., match_data_temp %>% rename(is_home_mean = is_home),
+              by = c("prev_match_date" = "created_at", 
+                     "team" = "team")) %>%
+    select(-prev_match_date, -last_n) %>%
     group_by(sport, league, match_date, is_home, team, gp_suffix) %>%
-    partition(., cluster = cluster) %>%
-    mutate(vars_data = 
-             map2(hist_match, team,
-                  function(data_i, team_i){
-                    
-                    return(data_i %>%
-                             left_join(., match_data %>%
-                                         filter(team %in% team_i),
-                                       by = c("prev_match_date" = 
-                                                "created_at")) %>%
-                             select(-last_n, -prev_match_date, -team) %>%
-                             rename(is_home_mean = is_home) %>%
-                             summarise_all(., mean))
-                  })) %>%
-    collect() %>%
-    unnest(c(vars_data)) %>%
+    summarise_all(., mean) %>%
     
-    select(-hist_match) %>%
-    as.data.frame() %>%
-    
-    gather(., var_names, var_values, 
+    gather(., var_names, var_values,
            -sport, -league, -match_date, -is_home, -team, -gp_suffix) %>%
-    rowwise() %>%
+    as.data.frame() %>%
     mutate(var_names_new = paste(var_names, "_", gp_suffix, sep = "")) %>%
     select(-var_names, -gp_suffix) %>%
     spread(., var_names_new, var_values) %>%
     as.data.frame()
   
-  lapply(c(1:length(cluster)), function(x) cluster[[x]]$close())
-  rm(cluster)
-  
-  return(test_league)
+  return(temp_hist_matches)
 }
 
 # ----- Example -----
