@@ -11,14 +11,17 @@ library(Rsolnp)
 eval_period <- "2018-07-01"
 b_fraction <- 0.2
 
+# ----- Set Working Directory -----
+setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
+
 # ----- Load Light GBM Model -----
-model_lightgbm <- readRDS.lgb.Booster("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science/2_ml_pipelines/db_temp/5_lightgbm_model.rds")
+model_lightgbm <- readRDS.lgb.Booster("2_ml_pipelines/db_temp/5_lightgbm_model.rds")
 
 # ----- Load Modelling Data -----
-load("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science/2_ml_pipelines/db_temp/modelling_data.RData")
+load("2_ml_pipelines/db_temp/modelling_data.RData")
 
 # ----- Load Match Data -----
-load("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science/0_etl/db_temp/0_results_download.RData")
+load("0_etl/db_temp/0_results_download.RData")
 
 # - get modelling data
 dfit <- 
@@ -29,7 +32,7 @@ dfit <-
 
 # ----- create model data -----
 deval <- as(dfit %>% 
-              dplyr::select(-match_result, -n_goals, -match_date, -league) %>%
+              dplyr::select(-match_result, -n_goals, -match_date, -league, -team) %>%
               as.matrix(), 
             Class = "sparseMatrix")
 
