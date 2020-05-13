@@ -1,3 +1,15 @@
+# ----- Library Initiation ----- 
+library(data.table)
+library(dplyr)
+library(tidyverse)
+library(mice)
+
+rm(list = ls())
+gc()
+
+# ----- Set the Working Directory -----
+setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
+
 # ----- Load Results Data
 load("0_etl/db_temp/0_results_download.RData")
 
@@ -66,7 +78,7 @@ match_data <-
          
          r_overfair_25 = abs(0.5 - 1/coalesce(B365.2.5.1, P.2.5.1, GB.2.5.1)),
          r_overfair_25 = abs(0.5 - 1/coalesce(B365.2.5, P.2.5, GB.2.5))) %>%
-  as.data.frame() %>%
+  as_tibble() %>%
   
   # - Create strength indices
   group_by(team) %>%
@@ -88,7 +100,7 @@ match_data <-
          -B365.2.5, -B365.2.5.1, -P.2.5, -P.2.5.1, -GB.2.5, -GB.2.5.1) %>%
   select(-FTR, -FTHG, -FTAG, -HS, -AS, -HST, -AST, -HF, -AF, -HC, -AC, 
          -HY, -AY, -HR, -AR) %>%
-  as.data.frame() %>%
+  as_tibble() %>%
   
   # - replace infinite values
   mutate_if(is.numeric, function(x) ifelse(is.infinite(x), NA, x)) %>%
@@ -96,72 +108,80 @@ match_data <-
   # - Replacing missing values with column mean
   mice(., m = 5, method = "mean", printFlag = T) %>%
   complete(.) %>%
-  as.data.frame()
+  as_tibble()
 
-# ----- Calculate predictors -----
-predictors_data <- 
-  expand.grid("sport" = c("football"),
-              "league" = master_data %>% pull(Div) %>% unique()) %>%
-  mutate_if(., is.factor, as.character) %>%
-  as.data.frame() %>%
-  
-  group_by(sport, league) %>%
-  mutate("match_program" = 
-           map(league, 
-               function(league_i)
-                 
-                 # - get list of matches
-                 master_data %>%
-                 filter(Div %in% league_i) %>%
-                 select(HomeTeam, AwayTeam, created_at) %>%
-                 gather(., is_home, team, -created_at) %>%
-                 mutate(is_home = recode(is_home, 
-                                         "HomeTeam" = 1, 
-                                         "AwayTeam" = 0)) %>%
-                 distinct() %>%
-                 rename(match_date = created_at) %>%
-                 
-                 # - Join all matches to specific team
-                 left_join(., master_data %>%
-                             filter(Div %in% league_i) %>%
-                             select(HomeTeam, AwayTeam, created_at) %>%
-                             gather(., is_home, team, -created_at) %>%
-                             select(-is_home) %>%
-                             distinct() %>%
-                             rename(prev_match_date = created_at)) %>%
-                 
-                 # - Subset historical, i.e. created_at >= prev_match_date
-                 filter(match_date > prev_match_date) %>%
-                 
-                 # - Pick only 50 dates
-                 group_by(match_date, team) %>%
-                 arrange(desc(prev_match_date)) %>%
-                 top_n(50, prev_match_date) %>%
-                 mutate(last_n = row_number()) %>%
-                 as.data.frame() %>%
-                 
-                 # - Sort matches into groups(last_5, last_10 etc.)
-                 left_join(., expand.grid("last_n" = c(1:50),
-                                          "group" = c(1:10) * 5,
-                                          "suffix" = "last") %>%
-                             filter(last_n <= group) %>%
-                             rowwise() %>%
-                             mutate(gp_suffix = 
-                                      paste(suffix, "_", group, sep = "")) %>%
-                             select(-suffix, -group) %>%
-                             as.data.frame(), by = "last_n") %>%
-                 
-                 # - Nesting the data into another layer
-                 group_by(match_date, is_home, team, gp_suffix) %>%
-                 nest()
-           )) %>%
-  
-  unnest(c(match_program)) %>%
-  rename(hist_match = data)
-
-rm(master_data)
-# rm(list = ls()[!(ls() %in% c("match_data", "predictors_data", "dest_path"))])
 gc()
 
-# ----- Save Data -----
-save.image(file = dest_path)
+# ----- Calculate predictors -----
+for(j in unique(master_data$Div)){
+  
+  # j <- "E0"
+  
+  predictors_data <- 
+    expand.grid("sport" = c("football"),
+                "league" = j) %>%
+                # "league" = master_data %>% pull(Div) %>% unique()) %>%
+    mutate_if(., is.factor, as.character) %>%
+    as_tibble() %>%
+    
+    group_by(sport, league) %>%
+    mutate("match_program" = 
+             map(league, 
+                 function(league_i)
+                   
+                   # - get list of matches
+                   master_data %>%
+                   filter(Div %in% league_i) %>%
+                   select(HomeTeam, AwayTeam, created_at) %>%
+                   gather(., is_home, team, -created_at) %>%
+                   mutate(is_home = recode(is_home, 
+                                           "HomeTeam" = 1, 
+                                           "AwayTeam" = 0)) %>%
+                   distinct() %>%
+                   rename(match_date = created_at) %>%
+                   
+                   # - Join all matches to specific team
+                   left_join(., master_data %>%
+                               filter(Div %in% league_i) %>%
+                               select(HomeTeam, AwayTeam, created_at) %>%
+                               gather(., is_home, team, -created_at) %>%
+                               select(-is_home) %>%
+                               distinct() %>%
+                               rename(prev_match_date = created_at)) %>%
+                   
+                   # - Subset historical, i.e. created_at >= prev_match_date
+                   filter(match_date > prev_match_date) %>%
+                   
+                   # - Pick only 50 dates
+                   group_by(match_date, team) %>%
+                   arrange(desc(prev_match_date)) %>%
+                   top_n(50, prev_match_date) %>%
+                   mutate(last_n = row_number()) %>%
+                   as_tibble() %>%
+                   
+                   # - Sort matches into groups(last_5, last_10 etc.)
+                   left_join(., expand.grid("last_n" = c(1:50),
+                                            "group" = c(1:10) * 5,
+                                            "suffix" = "last") %>%
+                               filter(last_n <= group) %>%
+                               rowwise() %>%
+                               mutate(gp_suffix = 
+                                        paste(suffix, "_", group, sep = "")) %>%
+                               select(-suffix, -group) %>%
+                               as.data.frame(), by = "last_n") %>%
+                   as_tibble() %>%
+                   
+                   # - Nesting the data into another layer
+                   group_by(match_date, is_home, team, gp_suffix) %>%
+                   nest()
+             )) %>%
+    
+    unnest(c(match_program)) %>%
+    rename(hist_match = data)
+  
+  # ----- Destination Path -----
+  dest_path <- "1_variable_calculator/db_temp/1_variable_calculator.RData"
+  
+  save("match_data", "predictors_data", 
+       file = paste("1_variable_calculator/db_temp/1_variable_calculator_", j, ".RData", sep = ""))
+}
