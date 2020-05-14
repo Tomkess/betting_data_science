@@ -290,3 +290,7 @@ for(i in 1:nrow(f_nearest_matches)){
   rm(i_payoff)
   rm(l_par)
 }
+
+# ----- Save the Betting strategy -----
+save(list = c("f_nearest_matches"), 
+     file = paste("5_betting/db_temp/", Sys.Date(), "_bet.RData", sep = ""))
