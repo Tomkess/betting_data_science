@@ -101,6 +101,7 @@ if("1_tipsport_feedxml.RData" %in% list.files("0_etl/db_temp")){
   data_temp <- rbind(data_temp, odds_data) %>% as.data.frame()
   
   save(data_temp, file = dest_path)
+  
 }else{
   
   data_temp <- odds_data %>% as.data.frame()
