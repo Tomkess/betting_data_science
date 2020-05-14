@@ -38,8 +38,7 @@ for(j in var_files$league_name){
     # j <- "EC"
     # - Compute modelling data for selected league
     modelling_temp <- 
-      get_modellingdata(predictors_data %>%
-                          filter(league %in% j)) %>%
+      get_modellingdata(predictors_data %>% filter(league %in% j)) %>%
       left_join(., match_data %>% 
                   select(created_at, is_home, team, match_result, n_goals) %>%
                   as.data.frame(), 
