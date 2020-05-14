@@ -5,11 +5,11 @@ library(lightgbm)
 library(Matrix)
 
 # ----- Set Working Directory -----
-setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
 
 # ----- Load Modelling and Match Data -----
 load("2_ml_pipelines/db_temp/modelling_data.RData")
-load("1_variable_calculator/db_temp/1_variable_calculator.RData")
+load("1_variable_calculator/db_temp/1_variable_calculator_B1.RData")
 
 rm(predictors_data)
 
@@ -30,27 +30,14 @@ modelling_data <- modelling_data %>%
 traindata <- 
   modelling_data %>%
   filter(match_date <= as.Date(train_date)) %>%
-  
-  dplyr::select(-match_date) %>%
-  
-  # - increase the sample based on the weights
-  mutate(i_row = row_number()) %>%
-  group_by(i_row) %>%
-  do(sample_n(., floor(m_weights), replace = TRUE)) %>%
-  as.data.frame() %>%
-  
-  # - de - select the columns
-  dplyr::select(-i_row, -m_weights, -league, -team) %>%
+  dplyr::select(-match_date, -league, -team) %>%
   as.data.frame()
 
 testdata <- 
   modelling_data %>%
   filter(match_date > as.Date(train_date) & 
            match_date <= as.Date(test_date)) %>%
-  dplyr::select(-match_date) %>%
-  
-  # - de - select the columns
-  dplyr::select(-m_weights, -league, -team) %>%
+  dplyr::select(-match_date, -league, -team) %>%
   as.data.frame()
 
 rm(modelling_data)
@@ -60,15 +47,17 @@ gc()
 # ----- create model data -----
 dtrain <- 
   lgb.Dataset(data = as(traindata %>% 
-                          select(-match_result, -n_goals) %>% 
+                          select(-match_result, -n_goals, -m_weights) %>% 
                           as.matrix(), 
                         Class = "sparseMatrix"), 
-              label = traindata$n_goals)
+              label = traindata$n_goals,
+              weight = traindata$m_weights)
 
 dtest <- 
   lgb.Dataset.create.valid(dtrain, 
                            data = as(testdata %>% 
-                                       select(-match_result, -n_goals) %>% 
+                                       select(-match_result, -n_goals, 
+                                              -m_weights) %>% 
                                        as.matrix(), 
                                      Class = "sparseMatrix"), 
                            label = testdata$n_goals)
@@ -77,7 +66,7 @@ dtest <-
 valids <- list(test = dtest)
 params <- list(objective = "poisson", 
                metric = "poisson", 
-               boosting = "dart",
+               boosting = "gbdt",
                max_depth = 4,
                num_leaves = 15)
 
