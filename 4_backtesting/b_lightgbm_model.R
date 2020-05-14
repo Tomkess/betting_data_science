@@ -193,6 +193,7 @@ backtesting_output <-
   # - create poisson distribution
   group_by(Div, season, round, HomeTeam, AwayTeam, 
            created_at, FTR, total_goals, goals_result) %>%
+  
   mutate(poisson_data = 
            map(match_data, function(df_input) {
              
