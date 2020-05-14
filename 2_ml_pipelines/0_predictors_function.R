@@ -1,13 +1,16 @@
+# ----- Library Loading -----
 library(purrr)
 library(multidplyr)
 library(tidyr)
 library(rlang)
 
 unnest_dt <- function(dt, col, id){
+  
   stopifnot(is.data.table(dt))
   by <- substitute(id)
   col <- substitute(unlist(col, recursive = FALSE))
   dt[, eval(col), by = eval(by)]
+  
 }
 
 # ----- Get Modelling Data -----
