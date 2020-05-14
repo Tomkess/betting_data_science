@@ -11,7 +11,8 @@ library(Rsolnp)
 setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
 
 # ----- Load Light GBM Model -----
-model_lightgbm <- readRDS.lgb.Booster("2_ml_pipelines/db_temp/5_lightgbm_model.rds")
+model_lightgbm <- 
+  readRDS.lgb.Booster("2_ml_pipelines/db_temp/5_lightgbm_model.rds")
 
 # ----- Get Master Data -----
 load("1_variable_calculator/db_temp/1_variable_calculator_B1.RData")
@@ -95,7 +96,8 @@ n_predictors_data <-
   group_by(sport, league, match_date, is_home, team) %>%
   mutate(max_date = max(prev_match_date)) %>%
   as.data.frame() %>%
-  mutate(diff_t = as.numeric(difftime(match_date, max_date, units = "days"))) %>%
+  mutate(diff_t = 
+           as.numeric(difftime(match_date, max_date, units = "days"))) %>%
   mutate(suspicious = ifelse(diff_t > 365, 1, 0)) %>%
   select(-max_date, -diff_t) %>%
   as.data.frame() %>%
@@ -240,7 +242,8 @@ f_nearest_matches <- n_nearest_matches %>%
                
                # - get payoff
                mutate(payoff_Tipsport = 
-                        ifelse(prob_25 > prob_251, `Méně než 2.5`, `Více než 2.5`))
+                        ifelse(prob_25 > prob_251, 
+                               `Méně než 2.5`, `Více než 2.5`))
              
              return(data_temp)
            }))
