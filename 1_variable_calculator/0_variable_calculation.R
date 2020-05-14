@@ -183,5 +183,6 @@ for(j in unique(master_data$Div)){
   dest_path <- "1_variable_calculator/db_temp/1_variable_calculator.RData"
   
   save("match_data", "predictors_data", 
-       file = paste("1_variable_calculator/db_temp/1_variable_calculator_", j, ".RData", sep = ""))
+       file = paste("1_variable_calculator/db_temp/1_variable_calculator_", j, 
+                    ".RData", sep = ""))
 }
