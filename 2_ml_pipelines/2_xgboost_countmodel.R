@@ -6,11 +6,11 @@ library(xgboost)
 library(rBayesianOptimization)
 
 # ----- Set Working Directory -----
-setwd("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science")
+setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
 
 # ----- Load Modelling and Match Data -----
 load("2_ml_pipelines/db_temp/modelling_data.RData")
-load("1_variable_calculator/db_temp/1_variable_calculator.RData")
+load("1_variable_calculator/db_temp/1_variable_calculator_B1.RData")
 
 rm(predictors_data)
 
@@ -73,22 +73,11 @@ modelling_data <- modelling_data %>%
                    "is_home" = "is_home", 
                    "team" = "team"))
 
-# ----- Fit Model -----
-
 # ----- Fit XGBOOST Model using xgboost package -----
 xgboost_traindata <- 
   modelling_data %>%
   filter(match_date <= as.Date(train_date)) %>%
   select(-match_date, -league) %>%
-  
-  # # - increase the sample based on the weights
-  # mutate(i_row = row_number()) %>%
-  # group_by(i_row) %>%
-  # do(sample_n(., floor(m_weights/3), replace = TRUE)) %>%
-  # as.data.frame() %>%
-  
-  # - de - select the columns
-  # select(-i_row, -m_weights) %>%
   as.data.frame()
 
 xgboost_testdata <- 
@@ -114,28 +103,40 @@ dtest <-
               missing = NA)
 gc()
 
-OPT_Res <- 
-  BayesianOptimization(xgb_cv_bayes,
-                       bounds = list(eta = c(0.01, 0.35),
-                                     max_depth = c(2L, 6L),
-                                     min_child_weight = c(1L, 10L),
-                                     gamma = c(0.0, 5.0),
-                                     alpha = c(0.0, 5.0),
-                                     lambda = c(0.0, 5.0)),
-                       init_grid_dt = NULL, 
-                       init_points = 20, 
-                       n_iter = 20,
-                       acq = "ucb", 
-                       kappa = 2.576, 
-                       eps = 0.0,
-                       verbose = TRUE)
+rm(modelling_data)
+rm(match_data)
+gc()
 
-eta_opt <- OPT_Res$Best_Par[["eta"]]
-maxdepth_opt <- OPT_Res$Best_Par[["max_depth"]]
-minchildweight_opt <- OPT_Res$Best_Par[["min_child_weight"]]
-gamma_opt <- OPT_Res$Best_Par[["gamma"]]
-lambda_opt <- OPT_Res$Best_Par[["lambda"]]
-alpha_opt <- OPT_Res$Best_Par[["alpha"]]
+# ----- Deprecated: too much computationally intensive ----- #
+# OPT_Res <- 
+#   BayesianOptimization(xgb_cv_bayes,
+#                        bounds = list(eta = c(0.01, 0.2),
+#                                      max_depth = c(2L, 6L),
+#                                      min_child_weight = c(1L, 10L),
+#                                      gamma = c(0.0, 5.0),
+#                                      alpha = c(0.0, 5.0),
+#                                      lambda = c(0.0, 5.0)),
+#                        init_grid_dt = NULL, 
+#                        init_points = 20, 
+#                        n_iter = 20,
+#                        acq = "ucb", 
+#                        kappa = 2.576, 
+#                        eps = 0.0,
+#                        verbose = TRUE)
+
+# eta_opt <- OPT_Res$Best_Par[["eta"]]
+# maxdepth_opt <- OPT_Res$Best_Par[["max_depth"]]
+# minchildweight_opt <- OPT_Res$Best_Par[["min_child_weight"]]
+# gamma_opt <- OPT_Res$Best_Par[["gamma"]]
+# lambda_opt <- OPT_Res$Best_Par[["lambda"]]
+# alpha_opt <- OPT_Res$Best_Par[["alpha"]]
+
+eta_opt <- 0.2
+maxdepth_opt <- 4
+minchildweight_opt <- 5
+gamma_opt <- 0
+lambda_opt <- 0
+alpha_opt <- 0
 
 cv_opt <- xgb.train(params = list(booster = "gbtree", 
                                   eta = eta_opt,
