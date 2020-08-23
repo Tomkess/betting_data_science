@@ -2,7 +2,6 @@
 library(data.table)
 library(dplyr)
 library(tidyverse)
-library(mice)
 
 rm(list = ls())
 gc()
@@ -26,20 +25,25 @@ match_data <-
   distinct() %>%
   gather(., is_home, team, 
          -created_at, -FTR,
+         
          # - Match Statistics
          -FTHG, -FTAG, -HS, -AS, -HST, -AST, -HF, -AF, -HC, -AC, 
          -HY, -AY, -HR, -AR,
+         
          # - Bet Odds
          -B365H, -B365D, -B365A, -BWH, -BWD, -BWA, 
          -IWH, -IWD, -IWA, -PSH, -PSD, -PSA, 
          -WHH, -WHD, -WHA, -VCH, -VCD, -VCA,
-         -B365.2.5, -B365.2.5.1, -P.2.5, -P.2.5.1, -GB.2.5, -GB.2.5.1) %>%
-  # rowwise() %>%
+         -B365.2.5, -B365.2.5.1, 
+         -P.2.5, -P.2.5.1, 
+         -GB.2.5, -GB.2.5.1) %>%
+  
+  # - dummy is_home
   mutate(is_home = recode(is_home, "HomeTeam" = 1, "AwayTeam" = 0)) %>%
   
   # - Create match result
   mutate(match_result = case_when(FTR == "H" & is_home == 1 ~ 1, # home wins
-                                  FTR == "A" & is_home == 0 ~ 0, # away wins
+                                  FTR == "A" & is_home == 0 ~ 1, # away wins
                                   FTR == "A" & is_home == 1 ~ 0, # away loses
                                   FTR == "H" & is_home == 0 ~ 0, # home loses
                                   FTR == "D" ~ -1)) %>%
@@ -98,29 +102,22 @@ match_data <-
          -IWH, -IWD, -IWA, -PSH, -PSD, -PSA, 
          -WHH, -WHD, -WHA, -VCH, -VCD, -VCA,
          -B365.2.5, -B365.2.5.1, -P.2.5, -P.2.5.1, -GB.2.5, -GB.2.5.1) %>%
+  
   select(-FTR, -FTHG, -FTAG, -HS, -AS, -HST, -AST, -HF, -AF, -HC, -AC, 
          -HY, -AY, -HR, -AR) %>%
   as_tibble() %>%
   
   # - replace infinite values
-  mutate_if(is.numeric, function(x) ifelse(is.infinite(x), NA, x)) %>%
-  
-  # - Replacing missing values with column mean
-  mice(., m = 5, method = "mean", printFlag = T) %>%
-  complete(.) %>%
-  as_tibble()
-
+  mutate_if(is.numeric, function(x) ifelse(is.infinite(x), NA, x))
 gc()
 
 # ----- Calculate predictors -----
 for(j in unique(master_data$Div)){
   
   # j <- "E0"
-  
   predictors_data <- 
     expand.grid("sport" = c("football"),
                 "league" = j) %>%
-                # "league" = master_data %>% pull(Div) %>% unique()) %>%
     mutate_if(., is.factor, as.character) %>%
     as_tibble() %>%
     
@@ -145,7 +142,9 @@ for(j in unique(master_data$Div)){
                                filter(Div %in% league_i) %>%
                                select(HomeTeam, AwayTeam, created_at) %>%
                                gather(., is_home, team, -created_at) %>%
-                               select(-is_home) %>%
+                               mutate(is_home = recode(is_home, 
+                                                       "HomeTeam" = 1, 
+                                                       "AwayTeam" = 0)) %>%
                                distinct() %>%
                                rename(prev_match_date = created_at)) %>%
                    
@@ -153,15 +152,15 @@ for(j in unique(master_data$Div)){
                    filter(match_date > prev_match_date) %>%
                    
                    # - Pick only 50 dates
-                   group_by(match_date, team) %>%
+                   group_by(match_date, team, is_home) %>%
                    arrange(desc(prev_match_date)) %>%
-                   top_n(50, prev_match_date) %>%
+                   top_n(20, prev_match_date) %>%
                    mutate(last_n = row_number()) %>%
                    as_tibble() %>%
                    
                    # - Sort matches into groups(last_5, last_10 etc.)
-                   left_join(., expand.grid("last_n" = c(1:50),
-                                            "group" = c(1:10) * 5,
+                   left_join(., expand.grid("last_n" = c(1:20),
+                                            "group" = c(1:5) * 4,
                                             "suffix" = "last") %>%
                                filter(last_n <= group) %>%
                                rowwise() %>%
@@ -179,9 +178,7 @@ for(j in unique(master_data$Div)){
     unnest(c(match_program)) %>%
     rename(hist_match = data)
   
-  # ----- Destination Path -----
-  dest_path <- "1_variable_calculator/db_temp/1_variable_calculator.RData"
-  
+  # ----- Save Data -----
   save("match_data", "predictors_data", 
        file = paste("1_variable_calculator/db_temp/1_variable_calculator_", j, 
                     ".RData", sep = ""))
