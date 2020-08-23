@@ -13,25 +13,30 @@ links_all <- start_webpage %>%
   str_subset(string = ., pattern = "scam", negate = TRUE) %>%
   str_subset(string = ., pattern = "betting", negate = TRUE) %>%
   str_subset(string = ., pattern = "downloadm", negate = TRUE) %>%
-  str_subset(string = ., pattern = "gambling", negate = TRUE)
+  str_subset(string = ., pattern = "gambling", negate = TRUE) %>%
+  unique()
 
 # ----- Get file links -----
-current_data <- lapply(links_all, 
-                       function(x){ 
-                         page <- html(x)
-                         return(page %>%
-                                  html_nodes("a") %>%
-                                  html_attr("href") %>%
-                                  str_subset("\\.csv"))})
+current_data <- 
+  lapply(links_all, 
+         function(x){
+           page <- html(x)
+           return(page %>%
+                    html_nodes("a") %>%
+                    html_attr("href") %>%
+                    str_subset("\\.csv"))})
 
 names(current_data) <- links_all
-links_data <- data.frame(name_league = rep(names(current_data), 
-                                           sapply(current_data, length)),
-                         file_link = unlist(current_data))
+links_data <- 
+  data.frame(name_league = rep(names(current_data), 
+                               sapply(current_data, length)),
+             file_link = unlist(current_data)) %>%
+  distinct()
+rownames(links_data) <- c(1:nrow(links_data))
 
-if("0_results_download.RData" %in% list.files("0_etl/db_temp")){
+if ("0_results_download.RData" %in% list.files("0_etl/db_temp")) {
   links_data <- links_data %>%
-    filter(str_detect(string = file_link, pattern = "1920") == TRUE) %>%
+    filter(str_detect(string = file_link, pattern = c_season) == TRUE) %>%
     as.data.frame()
 }else{
   links_data <- links_data %>%
@@ -39,13 +44,12 @@ if("0_results_download.RData" %in% list.files("0_etl/db_temp")){
 }
 
 # ----- Download Files -----
-masterdata_list <- lapply(links_data$file_link, 
-                          function(x) 
-                            read.csv(paste("https://www.football-data.co.uk/", 
-                                           x, sep = ""), 
-                                     stringsAsFactors = FALSE))
+masterdata_list <- 
+  lapply(links_data$file_link, 
+         function(x) read.csv(paste("https://www.football-data.co.uk/", x, 
+                                    sep = ""), stringsAsFactors = FALSE))
 
-# ----- Data Preprocessing -----
+# ----- Data pre - processing -----
 asian_handicap <- c("BbAH", "BbAHh", "AHh", "BbMxAHH", "BbAvAHH", 
                     "BbMxAHA", "BbAvAHA", "GBAHH", "GBAHA", "GBAH", "LBAHH", 
                     "LBAHA", "LBAH", "B365AHH", "B365AHA", "B365AH", "PAHH",
@@ -96,7 +100,7 @@ master_data_actual <- master_data
 rm(master_data)
 
 # ----- Save RDS file -----
-if("0_results_download.RData" %in% list.files("0_etl/db_temp")){
+if ("0_results_download.RData" %in% list.files("0_etl/db_temp")) {
   load(dest_path)
   
   data_save <- 
