@@ -25,7 +25,7 @@ xml_data <-
   mutate(dateclosed = dmy_hm(dateclosed)) %>%
   as.data.frame() %>%
   
-  filter(dateclosed >= current_date) %>%
+  filter(dateclosed >= Sys.Date()) %>%
   as.data.frame()
 
 winner_bets <- 
