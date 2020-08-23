@@ -12,7 +12,10 @@ gc()
 # ----- Set the Working Directory -----
 setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
 
-# ------ Sourcing the Scripts ------
+# ----- Current Season -----
+c_season <- "1920"
+
+# ----- Sourcing the Scripts -----
 source("0_etl/0_results_download.R")
 source("0_etl/1_tipsport_feedxml.R")
 
