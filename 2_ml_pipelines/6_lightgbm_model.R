@@ -8,59 +8,33 @@ library(Matrix)
 setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
 
 # ----- Load Modelling and Match Data -----
-load("2_ml_pipelines/db_temp/modelling_data.RData")
+load("2_ml_pipelines/db_temp/test_data.RData")
+load("2_ml_pipelines/db_temp/train_data.RData")
 load("1_variable_calculator/db_temp/1_variable_calculator_B1.RData")
 
 rm(predictors_data)
-
-# ----- Model Configuration -----
-test_date <- "2018-06-01"
-train_date <- "2018-01-01"
-
-# ----- Create Weighting Structure -----
-modelling_data <- modelling_data %>%
-  left_join(., match_data %>%
-              group_by(created_at, is_home, team) %>%
-              summarise(m_weights = abs(mean(r_bookmakers_fee))),
-            by = c("match_date" = "created_at", 
-                   "is_home" = "is_home", 
-                   "team" = "team"))
-
-# ----- Fit ligth gbm model from package lightgbm -----
-traindata <- 
-  modelling_data %>%
-  filter(match_date <= as.Date(train_date)) %>%
-  dplyr::select(-match_date, -league, -team) %>%
-  as.data.frame()
-
-testdata <- 
-  modelling_data %>%
-  filter(match_date > as.Date(train_date) & 
-           match_date <= as.Date(test_date)) %>%
-  dplyr::select(-match_date, -league, -team) %>%
-  as.data.frame()
-
-rm(modelling_data)
 rm(match_data)
 gc()
 
 # ----- create model data -----
 dtrain <- 
-  lgb.Dataset(data = as(traindata %>% 
-                          select(-match_result, -n_goals, -m_weights) %>% 
+  lgb.Dataset(data = as(train_woe %>% 
+                          select(-match_result, -n_goals,
+                                 -match_date, -team) %>% 
+                          as.data.frame() %>%
                           as.matrix(), 
                         Class = "sparseMatrix"), 
-              label = traindata$n_goals,
-              weight = traindata$m_weights)
+              label = train_woe$n_goals)
 
 dtest <- 
   lgb.Dataset.create.valid(dtrain, 
-                           data = as(testdata %>% 
-                                       select(-match_result, -n_goals, 
-                                              -m_weights) %>% 
+                           data = as(test_woe %>% 
+                                       select(-match_result, -n_goals,
+                                              -match_date, -team) %>% 
+                                       as.data.frame() %>%
                                        as.matrix(), 
                                      Class = "sparseMatrix"), 
-                           label = testdata$n_goals)
+                           label = test_woe$n_goals)
 
 # ----- Set Parameters -----
 valids <- list(test = dtest)
