@@ -1,166 +1,139 @@
 # ----- Loading the Library -----
 library(data.table)
 library(dplyr)
-library(tidyverse)
-library(xgboost)
-library(rBayesianOptimization)
+library(tidymodels)
+library(tidyr)
+library(vip)
 
 # ----- Set Working Directory -----
 setwd("C:/Users/Peter/Desktop/ds_projects/betting_data_science")
 
-# ----- Load Modelling and Match Data -----
-load("2_ml_pipelines/db_temp/modelling_data.RData")
-load("1_variable_calculator/db_temp/1_variable_calculator_B1.RData")
+# ----- Load Modeling and Match Data -----
+load("2_ml_pipelines/db_temp/train_data.RData")
+load("2_ml_pipelines/db_temp/test_data.RData")
 
-rm(predictors_data)
+match_train <- train_woe %>%
+  mutate(n_goals_dummy = ifelse(n_goals > 2.5, "over 2.5", "under 2.5")) %>%
+  dplyr::select(-match_date, -n_goals, -match_result, -team) %>%
+  mutate_if(is.character, factor)
 
-# ----- Model Configuration -----
-test_date <- "2018-06-01"
-train_date <- "2018-01-01"
+match_test <- test_woe %>%
+  mutate(n_goals_dummy = ifelse(n_goals > 2.5, "over 2.5", "under 2.5")) %>%
+  dplyr::select(-match_date, -n_goals, -match_result, -team) %>%
+  mutate_if(is.character, factor)
 
-# ----- Functions -----
-xgb_cv_bayes <- function(eta, max_depth, min_child_weight, n_folds_input = 30, 
-                         gamma, alpha, lambda) {
-  
-  cv_folds <- KFold(xgboost_traindata$n_goals, 
-                    nfolds = n_folds_input,
-                    stratified = FALSE, 
-                    seed = 0)
-  
-  # eta = 0.15
-  # max_depth = 2
-  # min_child_weight = 3
-  # n_folds_input = 30
-  # lambda = 1
-  # gamma = 0
-  # alpha = 1
-  
-  cv <- xgb.cv(params = list(booster = "gbtree", 
-                             eta = eta,
-                             max_depth = max_depth,
-                             min_child_weight = min_child_weight,
-                             subsample = 1, 
-                             colsample_bytree = 1,
-                             lambda = lambda,
-                             alpha = alpha,
-                             gamma = gamma,
-                             objective = "count:poisson",
-                             eval_metric = "poisson-nloglik"),
-               
-               data = dtrain,
-               watchlist = list(test = dtest),
-               nrounds = 25,
-               print_every_n = 10,
-               folds = cv_folds, 
-               prediction = F, 
-               showsd = F,
-               early_stopping_rounds = 5,
-               verbose = T)
-  
-  max_nrounds <- length(cv$evaluation_log$test_poisson_nloglik_mean)
-  
-  list(Score = (-1) * 
-         cv$evaluation_log$test_poisson_nloglik_mean[max_nrounds],
-       Pred = cv$pred)
-}
+xgb_spec <- 
+  boost_tree(
+  trees = tune(),
+  stop_iter = 5, 
+  tree_depth = tune(), 
+  loss_reduction = tune(),
+  mtry = tune(),
+  learn_rate = tune()) %>% 
+  set_engine("xgboost") %>% 
+  set_mode("classification")
 
-# ----- Create Weighting Structure -----
-modelling_data <- modelling_data %>%
-  left_join(., match_data %>%
-              group_by(created_at, is_home, team) %>%
-              summarise(m_weights = abs(mean(r_bookmakers_fee))),
-            by = c("match_date" = "created_at", 
-                   "is_home" = "is_home", 
-                   "team" = "team"))
+xgb_grid <- grid_latin_hypercube(
+  trees(range = c(20, 40)),
+  tree_depth(range = c(1, 5)),
+  loss_reduction(),
+  finalize(mtry(), match_train),
+  learn_rate(),
+  size = 200)
 
-# ----- Fit XGBOOST Model using xgboost package -----
-xgboost_traindata <- 
-  modelling_data %>%
-  filter(match_date <= as.Date(train_date)) %>%
-  select(-match_date, -league) %>%
-  as.data.frame()
+xgb_wf <- workflow() %>%
+  add_formula(n_goals_dummy ~ .) %>%
+  add_model(xgb_spec)
 
-xgboost_testdata <- 
-  modelling_data %>%
-  filter(match_date <= as.Date(test_date) &
-           match_date >= as.Date(train_date)) %>%
-  select(-match_date, -m_weights, -league) %>%
-  as.data.frame()
+set.seed(123)
+match_folds <- vfold_cv(match_train, strata = "n_goals_dummy", v = 25)
 
-dtrain <- 
-  xgb.DMatrix(data.matrix(xgboost_traindata %>% 
-                            select(-n_goals, -match_result, -team, -m_weights) %>% 
-                            as.data.frame()), 
-              label = xgboost_traindata$n_goals, 
-              weight = xgboost_traindata$m_weights,
-              missing = NA)
+xgb_res <- tune_grid(
+  xgb_wf,
+  resamples = match_folds,
+  grid = xgb_grid,
+  metrics = yardstick::metric_set(pr_auc, roc_auc, recall, mn_log_loss),
+  control = control_grid(save_pred = TRUE))
 
-dtest <- 
-  xgb.DMatrix(data.matrix(xgboost_testdata %>% 
-                            select(-n_goals, -match_result, -team) %>% 
-                            as.data.frame()), 
-              label = xgboost_testdata$n_goals, 
-              missing = NA)
-gc()
+# ----- Performance Visualization -----
 
-rm(modelling_data)
-rm(match_data)
-gc()
+# pr_auc
+xgb_res %>%
+  collect_metrics() %>%
+  filter(.metric == "pr_auc") %>%
+  select(mean, mtry:loss_reduction) %>%
+  pivot_longer(mtry:loss_reduction,
+               values_to = "value",
+               names_to = "parameter") %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Area under Precision and Recall Curve")
 
-# ----- Deprecated: too much computationally intensive ----- #
-# OPT_Res <- 
-#   BayesianOptimization(xgb_cv_bayes,
-#                        bounds = list(eta = c(0.01, 0.2),
-#                                      max_depth = c(2L, 6L),
-#                                      min_child_weight = c(1L, 10L),
-#                                      gamma = c(0.0, 5.0),
-#                                      alpha = c(0.0, 5.0),
-#                                      lambda = c(0.0, 5.0)),
-#                        init_grid_dt = NULL, 
-#                        init_points = 20, 
-#                        n_iter = 20,
-#                        acq = "ucb", 
-#                        kappa = 2.576, 
-#                        eps = 0.0,
-#                        verbose = TRUE)
+# roc_auc
+xgb_res %>%
+  collect_metrics() %>%
+  filter(.metric == "roc_auc") %>%
+  select(mean, mtry:loss_reduction) %>%
+  pivot_longer(mtry:loss_reduction,
+               values_to = "value",
+               names_to = "parameter") %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Area under Curve (ROC)")
 
-# eta_opt <- OPT_Res$Best_Par[["eta"]]
-# maxdepth_opt <- OPT_Res$Best_Par[["max_depth"]]
-# minchildweight_opt <- OPT_Res$Best_Par[["min_child_weight"]]
-# gamma_opt <- OPT_Res$Best_Par[["gamma"]]
-# lambda_opt <- OPT_Res$Best_Par[["lambda"]]
-# alpha_opt <- OPT_Res$Best_Par[["alpha"]]
+# recall
+xgb_res %>%
+  collect_metrics() %>%
+  filter(.metric == "recall") %>%
+  select(mean, mtry:loss_reduction) %>%
+  pivot_longer(mtry:loss_reduction,
+               values_to = "value",
+               names_to = "parameter") %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Recall")
 
-eta_opt <- 0.2
-maxdepth_opt <- 4
-minchildweight_opt <- 5
-gamma_opt <- 0
-lambda_opt <- 0
-alpha_opt <- 0
+# mn_log_loss
+xgb_res %>%
+  collect_metrics() %>%
+  filter(.metric == "mn_log_loss") %>%
+  select(mean, mtry:loss_reduction) %>%
+  pivot_longer(mtry:loss_reduction,
+               values_to = "value",
+               names_to = "parameter") %>%
+  ggplot(aes(value, mean, color = parameter)) +
+  geom_point(alpha = 0.8, show.legend = FALSE) +
+  facet_wrap(~parameter, scales = "free_x") +
+  labs(x = NULL, y = "Mean LogLoss")
 
-cv_opt <- xgb.train(params = list(booster = "gbtree", 
-                                  eta = eta_opt,
-                                  max_depth = maxdepth_opt,
-                                  min_child_weight = minchildweight_opt,
-                                  subsample = 1, 
-                                  colsample_bytree = 1,
-                                  lambda = lambda_opt, 
-                                  alpha = alpha_opt,
-                                  gamma = gamma_opt,
-                                  objective = "count:poisson",
-                                  eval_metric = "poisson-nloglik"),
-                    
-                    data = dtrain,
-                    watchlist = list(test = dtest), 
-                    nrounds = 250,
-                    showsd = TRUE,
-                    early_stopping_rounds = 5, 
-                    maximize = F, 
-                    verbose = T)
+# ----- Select Best Configuration -----
+best_acc <- select_best(xgb_res, "roc_auc")
+final_xgb <- finalize_workflow(
+  xgb_wf,
+  best_acc)
 
-xgboost_model_output <- cv_opt
+final_xgb %>%
+  fit(data = match_train) %>%
+  pull_workflow_fit() %>%
+  vip(geom = "point", num_features = 10)
 
-rm(list = ls()[!(ls() %in% c("xgboost_model_output"))])
-gc()
+master_data <- rbind(match_train, match_test)
+data_split <- initial_split(master_data, prop = 3/4, strata = "n_goals_dummy")
+
+final_res <- last_fit(final_xgb, split = data_split)
+collect_metrics(final_res)
+
+final_res %>%
+  collect_predictions() %>%
+  roc_curve(n_goals_dummy, `.pred_over 2.5`) %>%
+  ggplot(aes(x = 1 - specificity, y = sensitivity)) +
+  geom_line(size = 1.5, color = "midnightblue") +
+  geom_abline(
+    lty = 2, alpha = 0.5,
+    color = "gray50",
+    size = 1.2)
 
 save.image("2_ml_pipelines/db_temp/5_xgboost_countmodel.RData")
