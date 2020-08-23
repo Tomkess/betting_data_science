@@ -21,6 +21,6 @@ get_result_data <- function(dfit_input, i_c_basic, i_c_input, i_round_data){
     group_by(league, season, team) %>%
     arrange(match_date) %>%
     mutate(round = row_number())
- 
-  return(result_data) 
+  
+  return(result_data)
 }
