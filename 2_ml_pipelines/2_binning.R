@@ -57,7 +57,8 @@ test_woe <-
   select(match_date, team, is_home, n_goals, match_result, contains("woe")) %>%
   select(-one_of(paste("woe.", del_vars, ".binned", sep = "")))
 
-rm(list = ls()[!(ls() %in% c("binning_model", "test_woe", "train_woe"))])
+rm(list = ls()[!(ls() %in% c("binning_model", "test_woe", 
+                             "train_woe", "data_split"))])
 gc()
 
 # ----- Saving Object -----
@@ -65,3 +66,4 @@ save(binning_model,
      file = "2_ml_pipelines/db_temp/binning_model/binning_model.RData")
 save(train_woe, file = "2_ml_pipelines/db_temp/train_data.RData")
 save(test_woe, file = "2_ml_pipelines/db_temp/test_data.RData")
+save(data_split, file = "2_ml_pipelines/db_temp/split_object.RData")
