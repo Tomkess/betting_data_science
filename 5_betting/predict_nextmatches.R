@@ -40,9 +40,10 @@ sharpe_fct <- function(fr){
   i_fr <- t(matrix(fr, nrow = 1))
   
   return((-1) * 
-           as.numeric((mean_p %*% i_fr)/sqrt(t(i_fr) %*% sd_p %*% t(t(i_fr)))))
+           as.numeric((mean_p %*% i_fr)/sqrt(t(i_fr) %*%
+                                               sd_p %*%
+                                               t(t(i_fr)))))
 }
-
 gc()
 
 # ----- Get Predictors Data Structure -----
@@ -222,10 +223,22 @@ f_nearest_matches <- n_nearest_matches %>%
   dplyr::select(-poisson_data) %>%
   unnest(c(pred_prob, match_data)) %>%
   
-  group_by(sport_league) %>%
+  as.data.frame() %>%
+  rowwise() %>%
+  mutate(my_pred = max(prob_25, prob_251)) %>%
+  filter(as.Date(dateclosed) <= Sys.Date() + 7) %>%
+  arrange(desc(my_pred)) %>%
+  as.data.frame() %>%
+  mutate(row_num = row_number()) %>%
+  mutate(is_bet = ifelse(row_num <= 15, 1, 0)) %>%
+  
+  select(-row_num, -my_pred) %>%
+  as.data.frame() %>%
+
+  group_by(is_bet) %>%
   nest() %>%
   
-  group_by(sport_league) %>%
+  group_by(is_bet) %>%
   mutate(opt_data_g = 
            map(data, function(df_i){
              # data_temp <- df_i
@@ -243,7 +256,8 @@ f_nearest_matches <- n_nearest_matches %>%
                # - get payoff
                mutate(payoff_Tipsport = 
                         ifelse(prob_25 > prob_251, 
-                               `Méně než 2.5`, `Více než 2.5`))
+                               `Méně než 2.5`/((100/`Méně než 2.5` + 100/`Více než 2.5`)/100), 
+                               `Více než 2.5`/((100/`Méně než 2.5` + 100/`Více než 2.5`)/100)))
              
              return(data_temp)
            }))
@@ -252,24 +266,25 @@ f_nearest_matches <-
   f_nearest_matches %>% 
   mutate(res_opt_data = list(NA))
 
-for(i in 1:nrow(f_nearest_matches)){
+for (i in 1:nrow(f_nearest_matches)) {
   df_input <- f_nearest_matches$opt_data_g[[i]]
   
-  if(nrow(df_input) > 2){
+  if (nrow(df_input) > 2) {
+    
     # - my prediction
     i_prob <- as.numeric(df_input %>% pull(my_pred))
     l_par <- length(i_prob)
     
     # - set up payoff 1
     i_payoff <- df_input %>% pull(payoff_Tipsport)
-    if(sum(is.na(i_payoff)) < 1){
+    if (sum(is.na(i_payoff)) < 1) {
       opt_bet <- 
         solnp(pars = c(rep(0.01, l_par)),
               fun = sharpe_fct, 
               eqfun = allocation_budget, 
-              eqB = 0.2,
+              eqB = 1,
               LB = c(rep(0.0, l_par)),
-              UB = c(rep(1, l_par)), control = list(trace = 0))
+              UB = c(rep(0.1, l_par)), control = list(trace = 0))
       opt_fr_tipsport <- opt_bet$pars
     }else{
       opt_fr_tipsport <- rep(0, l_par)
@@ -278,7 +293,7 @@ for(i in 1:nrow(f_nearest_matches)){
     data_output <- df_input %>%
       as.data.frame() %>%
       mutate(o_fr_tipsport = opt_fr_tipsport,
-             bet_send = floor(opt_fr_tipsport * 15000))
+             bet_send = floor(opt_fr_tipsport * 13731))
     f_nearest_matches$res_opt_data[[i]] <- data_output
     
   }else{

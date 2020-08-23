@@ -13,7 +13,7 @@ library(xgboost)
 h2o.init()
 
 # ----- set evaluation period -----
-eval_period <- "2018-07-01"
+eval_period <- "2019-01-01"
 b_fraction <- 0.2
 
 # ----- Set Working Directory -----
@@ -26,7 +26,8 @@ model_h2o <-
 load("2_ml_pipelines/db_temp/5_xgboost_countmodel.RData")
 
 # ----- Load Modelling Data -----
-load("2_ml_pipelines/db_temp/modelling_data.RData")
+# load("2_ml_pipelines/db_temp/modelling_data.RData")
+load("2_ml_pipelines/db_temp/test_data.RData")
 
 # ----- Load Match Data -----
 load("0_etl/db_temp/0_results_download.RData")
@@ -41,16 +42,16 @@ source("00_functions/get_prob.R")
 
 # ----- Get Modelling Data - input for predict function -----
 dfit <- 
-  modelling_data %>%
-  filter(match_date > eval_period) %>%
-  distinct() %>%
+  test_woe %>%
+  select(-match_result, -n_goals,
+         -match_date, -team) %>%
   as.data.frame()
 
 # ----- Determine the Round during the season -----
 colnames_basic <- 
   c("league", "match_date", "is_home", "team", "match_result", "n_goals")
-min_year <- min(lubridate::year(master_data$created_at))
-max_year <- max(lubridate::year(master_data$created_at))
+min_year <- min(lubridate::year(test_woe$match_date))
+max_year <- max(lubridate::year(test_woe$match_date))
 round_data <- data.frame(year = c(min_year:max_year))
 
 rm(min_year)

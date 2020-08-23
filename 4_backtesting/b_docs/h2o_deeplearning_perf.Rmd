@@ -15,7 +15,7 @@ library(tidyr)
 library(purrr)
 library(ggplot2)
 
-load("C:/Users/Peter.Tomko/OneDrive - 4Finance/concept/Betting Data Science/4_backtesting/db_temp/b_h2o_deeplearning.RData")
+load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/4_backtesting/db_temp/b_h2o_deeplearning.RData")
 ```
 
 ## Adding Time Dimension
@@ -43,19 +43,17 @@ backtesting_output <-
 
 ```{r Cumulative Accuracy}
 cum_accuracy <- backtesting_output %>%
-  filter(!is.na(res_opt_data)) %>%
+  filter(payoff_type %in% "payoff_B365") %>%
   group_by(Div, t_id) %>%
   mutate(metric_data = map(res_opt_data, function(df_input){
     temp_data <- df_input
     
     return(data.frame("tot_n" = nrow(temp_data),
-                      "tot_good" = 
-                        nrow(temp_data) -
-                        nrow(temp_data %>% 
-                               dplyr::filter(goals_result != my_pred_result))))
+                      "tot_good" = nrow(temp_data %>% 
+                                          filter(goals_result == my_pred_result))))
   })) %>%
   
-  dplyr::select(Div, season, round, t_id, metric_data) %>%
+  select(Div, season, round, t_id, metric_data) %>%
   unnest(c(metric_data)) %>%
   group_by(Div) %>%
   arrange(t_id) %>%
@@ -70,6 +68,7 @@ for(i in unique(cum_accuracy$Div)){
           xlab("Round") +
           ylab("c_tot_good/c_tot_n"))
 }
+
 rm(cum_accuracy)
 ```
 
@@ -77,102 +76,57 @@ rm(cum_accuracy)
 ```{r Betting Strategy Evaluation}
 init_cap <- 50000
 bet_strategy <- backtesting_output %>%
-  filter(!(is.na(res_opt_data))) %>%
-  
-  as_tibble() %>%
-  group_by(Div) %>%
-  arrange(t_id) %>%
-  mutate(t_id_new = row_number()) %>%
-  select(-t_id) %>%
-  rename(t_id = t_id_new) %>%
-  
-  group_by(Div, t_id) %>%
+  group_by(Div, t_id, payoff_type) %>%
   mutate(metric_data = map(res_opt_data, function(df_input){
-    temp_data <- df_input
     
-    temp_data <- temp_data %>%
+    temp_data <- df_input %>%
       rowwise() %>%
-      mutate(is_win_B365 = ifelse(goals_result == my_pred_result, 
-                                  yes = coalesce(payoff_B365 - 1, 0) * o_fr_B365, 
-                                  no = -1 * o_fr_B365),
-             is_win_P = ifelse(goals_result == my_pred_result, 
-                               yes = coalesce(payoff_P - 1, 0) * o_fr_P, 
-                               no = -1 * o_fr_P),
-             is_win_GB = ifelse(goals_result == my_pred_result, 
-                                yes = coalesce(payoff_GB - 1, 0) * o_fr_GB, 
-                                no = -1 * o_fr_GB),
-             is_win_avg = ifelse(goals_result == my_pred_result, 
-                                 yes = coalesce(payoff_avg - 1, 0) * o_fr_avg, 
-                                 no = -1 * o_fr_avg),
-             is_win_coalesce = ifelse(goals_result == my_pred_result, 
-                                      yes = coalesce(payoff_coalesce - 1, 0) * o_fr_clsc, 
-                                      no = -1 * o_fr_clsc)) %>%
+      mutate(is_win = ifelse(goals_result == my_pred_result, 
+                             yes = coalesce(payoff - 1, 0) * o_fr, 
+                             no = -1 * o_fr)) %>%
       
-      select(HomeTeam, AwayTeam, 
-             is_win_B365, is_win_P, is_win_GB, 
-             is_win_avg, is_win_coalesce)
+      select(HomeTeam, AwayTeam, is_win)
     
     return(temp_data)
     
   })) %>%
-  select(Div, t_id, metric_data) %>%
+  select(Div, t_id, metric_data, payoff_type) %>%
   unnest(c(metric_data)) %>%
   
-  group_by(Div) %>%
+  group_by(Div, payoff_type) %>%
   nest() %>%
   
-  group_by(Div) %>%
   mutate(profit_calc = map(data, function(df_input){
     d_temp <- df_input %>%
       arrange(t_id)
-    d_temp[is.na(d_temp)] <- 0
-    # d_temp <- bet_strategy$data[[2]] %>%
+    
+    # d_temp <- bet_strategy$data[[1]] %>%
     #   arrange(t_id)
+    d_temp[is.na(d_temp)] <- 0
     
     profit_data <- 
       data.frame("t_id" = rep(0, length(unique(d_temp$t_id))),
-                 "c_p_B365" = rep(0, length(unique(d_temp$t_id))),
-                 "c_p_P" = rep(0, length(unique(d_temp$t_id))),
-                 "c_p_GB" = rep(0, length(unique(d_temp$t_id))),
-                 "c_p_avg" = rep(0, length(unique(d_temp$t_id))),
-                 "c_p_coalesce" = rep(0, length(unique(d_temp$t_id))))
+                 "c_profit" = rep(0, length(unique(d_temp$t_id))))
     
-    for(i in 1:max(d_temp$t_id)){
+    c_it <- 1
+    for(i in unique(d_temp$t_id)){
       
-      profit_data$t_id[i] <- i
+      profit_data$t_id[c_it] <- i
       
-      if(i == 1){
+      if(c_it == 1){
         
-        profit_data$c_p_B365[i] <- 
-          init_cap + sum(init_cap * d_temp$is_win_B365[d_temp$t_id == i])
-        profit_data$c_p_P[i] <- 
-          init_cap + sum(init_cap * d_temp$is_win_P[d_temp$t_id == i])
-        profit_data$c_p_GB[i] <- 
-          init_cap + sum(init_cap * d_temp$is_win_GB[d_temp$t_id == i])
-        profit_data$c_p_avg[i] <- 
-          init_cap + sum(init_cap * d_temp$is_win_avg[d_temp$t_id == i])
-        profit_data$c_p_coalesce[i] <- 
-          init_cap + sum(init_cap * d_temp$is_win_coalesce[d_temp$t_id == i])
+        profit_data$c_profit[c_it] <- 
+          init_cap + sum(init_cap * d_temp$is_win[d_temp$t_id == i])
         
       }else{
         
-        profit_data$c_p_B365[i] <- 
-          profit_data$c_p_B365[i - 1] +
-          sum(init_cap * d_temp$is_win_B365[d_temp$t_id == i])
-        profit_data$c_p_P[i] <- 
-          profit_data$c_p_P[i - 1] +
-          sum(init_cap * d_temp$is_win_P[d_temp$t_id == i])
-        profit_data$c_p_GB[i] <- 
-          profit_data$c_p_GB[i - 1] +
-          sum(init_cap * d_temp$is_win_GB[d_temp$t_id == i])
-        profit_data$c_p_avg[i] <- 
-          profit_data$c_p_avg[i - 1] +
-          sum(init_cap * d_temp$is_win_avg[d_temp$t_id == i])
-        profit_data$c_p_coalesce[i] <- 
-          profit_data$c_p_coalesce[i - 1] +
-          sum(init_cap * d_temp$is_win_coalesce[d_temp$t_id == i])
+        profit_data$c_profit[c_it] <- 
+          profit_data$c_profit[c_it - 1] +
+          sum(init_cap * d_temp$is_win[d_temp$t_id == i])
         
       }
+      
+      c_it <- c_it + 1
     }
     
     return(profit_data)
@@ -180,13 +134,11 @@ bet_strategy <- backtesting_output %>%
   
   select(-data) %>%
   unnest(c(profit_calc)) %>%
-  as.data.frame() %>%
-  gather("Bookmaker", "Profit", -Div, -t_id) %>%
   as.data.frame()
 
 for(i in unique(bet_strategy$Div)){
   print(ggplot(data = bet_strategy %>% filter(Div %in% i)) +
-          geom_line(aes(x = t_id, y = Profit, colour = Bookmaker)) +
+          geom_line(aes(x = t_id, y = c_profit, colour = payoff_type)) +
           facet_grid(Div ~ .) +
           ggtitle("Cum Betting Profit - Dynamic Strategy") +
           xlab("Round") +
