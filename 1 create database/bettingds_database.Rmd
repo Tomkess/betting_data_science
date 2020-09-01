@@ -1,0 +1,135 @@
+---
+title: "1 Create Database"
+author: "Ing. Peter Tomko, M.A."
+date: "27/8/2020"
+output:
+  pdf_document: default
+  html_document: default
+---
+
+```{r setup, include = F}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+NOTE: RUN ONLY AT THE BEGINNING, i.e. when downloading data for the first time.
+
+## Initiate Connection
+
+```{r connection, warning = F, message = F, error = T}
+con <- DBI::dbConnect(odbc::odbc(), "betting_ds")
+```
+
+## Create Script for `betting_ds`
+
+It will not create database! - just showcase. The script prepares the database in the local PostgreSQL server.
+
+```{sql DB Creation Example, eval = F, connection = con, include = T}
+-- Database: betting_ds
+-- DROP DATABASE betting_ds;
+
+CREATE DATABASE betting_ds
+    WITH 
+    OWNER = postgres
+    ENCODING = 'UTF8'
+    LC_COLLATE = 'Czech_Czech Republic.1250'
+    LC_CTYPE = 'Czech_Czech Republic.1250'
+    TABLESPACE = pg_default
+    CONNECTION LIMIT = -1;
+```
+
+## Create `t_match_calendar`
+```{sql Calendar, connection = con, warning = F, message = F, error = T}
+drop table if exists t_match_calendar;
+create table if not exists t_match_calendar (
+match_id serial primary key,
+created_at date not null,
+league varchar(50) not null,
+season varchar(50) not null,
+home_t varchar(50) not null,
+away_t varchar(50) not null,
+file_link varchar(250) not null);
+```
+
+## Create `t_match_stats`
+```{sql Match, connection = con, warning = F, message = F, error = T}
+drop view if exists v_last_matches;
+drop view if exists v_match_stats;
+drop table if exists t_match_stats;
+create table if not exists t_match_stats (
+season varchar(50) not null,
+league varchar(50) not null,
+created_at date not null,
+ftr varchar(50) not null,
+fthg integer not null,
+ftag integer not null,
+hs integer,
+"as" integer, 
+hst integer,
+ast integer,
+hf integer,
+af integer,
+hc integer,
+ac integer,
+hy integer,
+ay integer,
+hr integer, 
+ar integer,
+b365h real,      
+b365d real,
+b365a real,
+bwh real, 
+bwd real, 
+bwa real,
+iwh real, 
+iwd real, 
+iwa real, 
+psh real, 
+psd real, 
+psa real, 
+whh real,
+whd real,
+wha real,
+vch real,
+vcd real,
+vca real,
+"b365.2.5" real,
+"b365.2.5.1" real,
+"p.2.5" real,
+"p.2.5.1" real,
+"gb.2.5" real,
+"gb.2.5.1" real,
+match_id integer not null,
+is_home integer not null,
+team varchar(50) not null);
+```
+
+## Create `t_tipsport_bookmaker`
+```{sql Tipsport, connection = con, warning = F, message = F, error = T}
+drop table if exists t_tipsport_bookmaker;
+create table if not exists t_tipsport_bookmaker (
+eventtype varchar(250) not null,
+eventtypedescription varchar(250) not null,
+gamepart varchar(250) not null,
+eventid varchar(250) not null,
+eventname varchar(250) not null,
+opportunityid varchar(250) not null,
+number varchar(250) not null,
+type varchar(250) not null,
+fullname varchar(250) not null,
+rate float not null,
+dateclosed timestamp without time zone not null,
+matchid varchar(250) not null,
+namefull varchar(250) not null,
+url varchar(250) not null,
+urlold varchar(250) not null,
+livematchid varchar(250),
+competition_name varchar(250) not null,
+annualname varchar(250) not null,
+sport_league varchar(250) not null,
+sport_url varchar(250) not null,
+sport_urlold varchar(250) not null,
+sport_id varchar(250) not null,
+sport_category varchar(250) not null,
+sport varchar(250) not null,
+created_at timestamp without time zone not null);
+```
