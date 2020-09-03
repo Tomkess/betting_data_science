@@ -1,0 +1,147 @@
+---
+title: "1 model development"
+author: "Ing. Peter Tomko, M.A."
+date: "1/9/2020"
+output:
+  pdf_document: default
+  html_document: default
+subtitle: Variable selection using ElasticNet with stratified cross-validation for hyper-parameter tuning
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## Introduction
+
+`woeBinning` helped to preliminary select potential variables. After applying elastic net, further elimination will help to narrow down potential variables to cca. 7-10 for final model. 
+
+Especially interesting, for this exercise, is to use standardized user interface provided in the package `tidymodels`.
+
+```{r ElasticNet, warning = F, message = F, error = F}
+library(vip)
+library(tidymodels)
+library(stringr)
+library(tidyverse)
+
+# ----- Upload Image -----
+load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/1a variable selection - binning.RData")
+
+# ----- Upsampled Data for Modelling -----
+train_data_glm <- 
+  recipe(n_goals_cat ~ ., data = other_seasons_woe %>% 
+           select(-league, -team, -is_home, -season, 
+                  -created_at, -match_id, -n_goals, -match_results) %>%
+           mutate_if(is.character, as.factor)) %>%
+  themis::step_upsample(n_goals_cat) %>%
+  prep() %>%
+  juice() %>%
+  as.data.frame()
+
+# ----- Model Structure -----
+ml_model_str <-
+  
+  # - parameters for tuning (similar to lambda and alpha from glmnet package)
+  logistic_reg(penalty = tune(),
+               mixture = tune()) %>% 
+  
+  # - glmnet, i.e. elastic net engine
+  set_engine("glmnet") %>% 
+  set_mode("classification")
+
+# ----- Stratified Sampling -----
+cv_splits <- vfold_cv(train_data_glm, strata = n_goals_cat)
+
+# ----- Create Workflow -----
+ml_workflow <- 
+  workflow() %>%
+  add_model(ml_model_str) %>%
+  add_formula(n_goals_cat ~ .)
+
+# ----- Set Parameters -----
+glmn_set <- parameters(penalty(range = c(-5, 1), trans = log10_trans()),
+                       mixture(range = c(0, 1)))
+
+# ----- Create Grid -----
+glmn_grid <- grid_regular(glmn_set, levels = c(7, 5))
+ctrl <- control_grid(save_pred = TRUE, verbose = TRUE)
+
+# ----- Tune Model -----
+glmn_tune <- 
+  tune_grid(ml_workflow,
+            resamples = cv_splits,
+            grid = glmn_grid,
+            metrics = metric_set(roc_auc),
+            control = ctrl)
+
+# ----- Create Final Model -----
+ml_model_fit <- 
+  ml_workflow %>%
+  finalize_workflow(select_best(glmn_tune, metric = "roc_auc")) %>%
+  fit(., data = train_data_glm)
+
+# ----- Variable Importance -----
+var_importance <- 
+  ml_model_fit %>% 
+  pull_workflow_fit() %>% 
+  vip(num_features = 10)
+
+bhm_vars <- 
+  c("league", "team", "is_home", "season", "created_at", "match_id", "n_goals", 
+    "match_results", "n_goals_cat",
+    str_remove(str_remove(var_importance$data$Variable, "woe."), ".binned"))
+
+# ----- Sub-setting Data for Bayesian Hierarchical Model -----
+season_1819_bhm <- 
+  season_1819 %>%
+  select(one_of(bhm_vars))
+
+season_1920_bhm <- 
+  season_1920 %>%
+  select(one_of(bhm_vars))
+
+other_seasons_bhm <- 
+  other_seasons %>%
+  cbind(., predict(ml_model_fit, new_data = other_seasons_woe),
+        predict(ml_model_fit, new_data = other_seasons_woe, type = "prob")) %>%
+  as.data.frame() %>%
+  rowwise() %>%
+  mutate(prob = max(`.pred_Over 2.5`, `.pred_Under 2.5`)) %>%
+  select(-`.pred_Over 2.5`, -`.pred_Under 2.5`) %>%
+  as.data.frame() %>%
+  filter(`.pred_class` == n_goals_cat) %>%
+  select(one_of(bhm_vars))
+
+# ----- for Bayesian Hierarchical Model -----
+norm_vars <- 
+  str_remove(str_remove(var_importance$data$Variable, "woe."), ".binned")
+rec_normalization <- 
+  recipe(n_goals ~ ., data = other_seasons_bhm) %>%
+  step_bagimpute(any_of(norm_vars))
+
+train_data_bhm <- 
+  rec_normalization %>%
+  prep() %>%
+  juice()
+names(train_data_bhm) <- str_replace_all(names(train_data_bhm), "__", "_")
+```
+
+## Variable Importance
+
+```{r pressure, echo=FALSE}
+ml_model_fit %>% 
+  pull_workflow_fit() %>% 
+  vip(num_features = 15)
+```
+
+## Grid Search Results
+```{r, echo=FALSE}
+autoplot(glmn_tune, 
+         metric = "roc_auc") +
+  labs(title = "Results of Grid Search for Parameters of a Elastic Net") +
+  ylab(label = "ROCAUC")
+```
+
+```{r Save, error = T, message = F, warning = F, include = T}
+save.image("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/1b elastic net modelling.RData")
+```

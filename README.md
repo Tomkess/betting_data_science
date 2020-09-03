@@ -10,11 +10,17 @@ All data is in .csv format, ready for use within standard spreadsheet applicatio
 
 # Process Workflow
 
-## 0_etl
+## bettingds_database.Rmd
 
-Contain the script that is scheduled under Windows OS using taskscheduler package in R.
+Creates tables within the schema `betting_ds` on the local PostgreSQL server.
+
+## data_preparation.Rmd
+
+Contains script that downloads a data from website and refreshes database tables created for this project.
 
 ## Data Description
+
+This part consists of data description - i.e. original data downloaded from the website.
 
 ### Key to results data:
 **Div** = *League Division*
