@@ -1,13 +1,14 @@
 .Rproj.user
 .Rhistory
-.RData
+*.RData
 .Ruserdata
 *.html
-*.xml
 data/*
 *.xlsx
 *.txt
+*.pdf
 vignettes/*
+venv/*
 data/*
 documentation/*
 *.stan
@@ -18,3 +19,5 @@ documentation/*
 2_ml_pipelines/-unique_value_check/unique_value_checker_cache/*
 2_ml_pipelines/-unique_value_check/unique_value_checker_cache/html/*
 4_backtesting/db_temp/*
+.idea
+logs
