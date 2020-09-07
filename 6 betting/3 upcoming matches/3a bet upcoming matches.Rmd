@@ -1,0 +1,50 @@
+---
+title: "Betting on Upcoming Matches"
+author: "Ing. Peter Tomko, M.A."
+date: "7/9/2020"
+output: html_document
+---
+
+```{r setup, include = F}
+knitr::opts_chunk$set(echo = TRUE)
+
+library(data.table)
+library(dplyr)
+library(tidyverse)
+library(woeBinning)
+library(tidymodels)
+library(stringr)
+
+con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
+```
+
+```{sql Last Matches, connection = con, output.var = "v_upcoming_matches"}
+select * from v_upcoming_matches;
+```
+
+```{sql Last Matches, connection = con, output.var = "t_mapping_team"}
+select distinct tipsport_league, results_league, results_team, tipsport_team 
+from 
+(select *, 
+max(created_at) over(partition by tipsport_league, results_league, results_team, tipsport_team) as last_update 
+from t_mapping_team) as m_data 
+where created_at = last_update;
+```
+
+
+```{r}
+d_upcoming_matches <- v_upcoming_matches %>%
+  
+  # - get HomeTeam
+  left_join(., t_mapping_team, by = c("sport_league" = "tipsport_league", 
+                                      "t_home_team" = "tipsport_team")) %>%
+  select(-results_league) %>%
+  rename(HomeTeam = results_team) %>%
+  
+  # - get AwayTeam
+  left_join(., t_mapping_team, by = c("sport_league" = "tipsport_league", 
+                                      "t_away_team" = "tipsport_team")) %>%
+  select(-results_league) %>%
+  rename(AwayTeam = results_team)
+
+```
