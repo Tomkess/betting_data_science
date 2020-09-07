@@ -21,7 +21,7 @@ con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
 ```{sql connection = con, connection = con, warning = F, message = F, error = T}
 drop view if exists v_upcoming_matches;
 create view v_upcoming_matches as (
-select distinct dateclosed, fullname, sport_league, 
+select distinct created_at, dateclosed, fullname, sport_league, 
 split_part(competition_name, '-', 1) t_home_team,
 split_part(competition_name, '-', 2) t_away_team, rate
 from t_tipsport_bookmaker
