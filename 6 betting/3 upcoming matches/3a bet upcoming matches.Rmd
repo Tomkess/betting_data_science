@@ -19,11 +19,16 @@ con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
 ```
 
 ```{sql Last Matches, connection = con, output.var = "v_upcoming_matches"}
-select * from v_upcoming_matches;
+select distinct created_at, dateclosed, fullname, sport_league, 
+trim(BOTH from t_home_team) as t_home_team,
+trim(BOTH from t_away_team) as t_away_team,
+rate from v_upcoming_matches;
 ```
 
 ```{sql Last Matches, connection = con, output.var = "t_mapping_team"}
-select distinct tipsport_league, results_league, results_team, tipsport_team 
+select distinct tipsport_league, results_league, 
+trim(BOTH from results_team) as results_team, 
+trim(BOTH from tipsport_team) as tipsport_team 
 from 
 (select *, 
 max(created_at) over(partition by tipsport_league, results_league, results_team, tipsport_team) as last_update 
@@ -31,20 +36,47 @@ from t_mapping_team) as m_data
 where created_at = last_update;
 ```
 
+```{sql Target Variable, connection = con, output.var = "v_match_stats"}
+select distinct * from v_match_stats;
+```
 
-```{r}
+```{r Get Upcoming Matches}
 d_upcoming_matches <- v_upcoming_matches %>%
+  as.data.frame() %>%
   
-  # - get HomeTeam
-  left_join(., t_mapping_team, by = c("sport_league" = "tipsport_league", 
-                                      "t_home_team" = "tipsport_team")) %>%
-  select(-results_league) %>%
-  rename(HomeTeam = results_team) %>%
+  # - create match ID
+  group_by(fullname, sport_league, t_home_team, t_away_team) %>%
+  mutate(match_id = c(1:n())) %>%
+  as.data.frame()
   
-  # - get AwayTeam
-  left_join(., t_mapping_team, by = c("sport_league" = "tipsport_league", 
-                                      "t_away_team" = "tipsport_team")) %>%
-  select(-results_league) %>%
-  rename(AwayTeam = results_team)
+  gather(., is_home, team, 
+         -dateclosed, -fullname, -sport_league, -rate, -match_id) %>%
+  mutate(is_home = ifelse(is_home == "t_home_team", "HomeTeam", "AwayTeam")) %>%
+  
+  # - get mapped team names
+  left_join(., t_mapping_team, by = c("sport_league" = "tipsport_league",
+                                      "team" = "tipsport_team")) %>%
+  
+  # - check how many time team was mapped
+  group_by(fullname, sport_league, match_id, is_home, team) %>%
+  mutate(t_mapped = n()) %>%
+  as.data.frame()
 
+# - assign not in data
+mutate(map_missing = ifelse(is.na(results_team), 1, 0)) %>%
+  as.data.frame() %>%
+  distinct() %>%
+  
+  # - get last match
+  left_join(., v_match_stats %>%
+              select(league, team, created_at) %>%
+              distinct() %>%
+              left_join(., t_mapping_team, by = c("league" = "results_league", 
+                                                  "team" = "results_team")) %>%
+              group_by(league, team, tipsport_league, tipsport_team) %>%
+              summarise(last_match = max(created_at)), 
+            by = c("results_league" = "league", 
+                   "results_team" = "team",
+                   "sport_league" = "tipsport_league",
+                   "team" = "tipsport_team"))
 ```
