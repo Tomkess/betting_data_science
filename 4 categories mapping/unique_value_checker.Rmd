@@ -37,7 +37,7 @@ select distinct league, team from v_match_stats;
 ```
 
 ```{sql connection = con, output.var = "t_mapping_league", eval = T, include = T, comment = F, echo = F}
-select tipsport_league, results_league 
+select distinct tipsport_league, results_league 
 from 
 (select *, 
 max(created_at) over(partition by tipsport_league, results_league) as last_update from t_mapping_league) as m_data 
@@ -45,7 +45,7 @@ where created_at = last_update;
 ```
 
 ```{sql connection = con, output.var = "t_mapping_team", eval = T, include = T, comment = F, echo = F}
-select tipsport_league, results_league, results_team, tipsport_team 
+select distinct tipsport_league, results_league, results_team, tipsport_team 
 from 
 (select *, 
 max(created_at) over(partition by tipsport_league, results_league, results_team, tipsport_team) as last_update 
