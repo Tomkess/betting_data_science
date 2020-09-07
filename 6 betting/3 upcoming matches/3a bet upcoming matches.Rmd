@@ -45,38 +45,38 @@ d_upcoming_matches <- v_upcoming_matches %>%
   as.data.frame() %>%
   
   # - create match ID
-  group_by(fullname, sport_league, t_home_team, t_away_team) %>%
+  group_by(created_at, fullname, sport_league, t_home_team, t_away_team) %>%
   mutate(match_id = c(1:n())) %>%
-  as.data.frame()
+  as.data.frame() %>%
   
-  gather(., is_home, team, 
-         -dateclosed, -fullname, -sport_league, -rate, -match_id) %>%
+  gather(., is_home, tipsport_team, 
+         -created_at, -dateclosed, -fullname, 
+         -sport_league, -rate, -match_id) %>%
   mutate(is_home = ifelse(is_home == "t_home_team", "HomeTeam", "AwayTeam")) %>%
+  rename(tipsport_league = sport_league) %>%
   
   # - get mapped team names
-  left_join(., t_mapping_team, by = c("sport_league" = "tipsport_league",
-                                      "team" = "tipsport_team")) %>%
+  left_join(., t_mapping_team, by = c("tipsport_league" = "tipsport_league",
+                                      "tipsport_team" = "tipsport_team")) %>%
   
   # - check how many time team was mapped
-  group_by(fullname, sport_league, match_id, is_home, team) %>%
+  group_by(created_at, fullname, tipsport_league, results_league, is_home, tipsport_team) %>%
   mutate(t_mapped = n()) %>%
-  as.data.frame()
-
-# - assign not in data
-mutate(map_missing = ifelse(is.na(results_team), 1, 0)) %>%
+  as.data.frame() %>%
+  
+  # - assign not in data
+  mutate(map_missing = ifelse(is.na(results_team), 1, 0)) %>%
   as.data.frame() %>%
   distinct() %>%
   
   # - get last match
   left_join(., v_match_stats %>%
-              select(league, team, created_at) %>%
+              select(team, created_at) %>%
               distinct() %>%
-              left_join(., t_mapping_team, by = c("league" = "results_league", 
-                                                  "team" = "results_team")) %>%
-              group_by(league, team, tipsport_league, tipsport_team) %>%
+              left_join(., t_mapping_team, by = c("team" = "results_team")) %>%
+              group_by(team, tipsport_team) %>%
               summarise(last_match = max(created_at)), 
-            by = c("results_league" = "league", 
-                   "results_team" = "team",
-                   "sport_league" = "tipsport_league",
-                   "team" = "tipsport_team"))
+            by = c("results_team" = "team",
+                   "tipsport_team" = "tipsport_team")) %>%
+  as.data.frame()
 ```
