@@ -13,12 +13,26 @@ knitr::opts_chunk$set(echo = TRUE)
 
 library(tidyverse)
 library(tidymodels)
-library(ggplot2)
-library(jtools)
 library(pscl)
-library(texreg)
+library(xlsx)
 
-load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/1c bayesian multilevel model.RData")
+# ----- Specify Output Path -----
+proj_path <- "C:/Users/Peter/Desktop/ds_projects/betting_data_science"
+folder_path <- "6 betting/1 model development/preliminary_data"
+hist_path <- "6 betting/2 historical performance"
+excel_output <- "evaluation_Data.xlsx"
+file_path <- "1b elastic net modelling.RData"
+
+output_file <- paste(proj_path, "/", hist_path, "/", excel_output, sep ="")
+input_path <- paste(proj_path, "/", folder_path, "/", file_path, sep = "")
+
+rm(proj_path)
+rm(folder_path)
+rm(file_path)
+rm(excel_output)
+rm(hist_path)
+
+load(input_path)
 ```
 
 ```{r connection, warning = F, message = F, error = F}
@@ -29,482 +43,192 @@ con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
 select * from t_match_stats;
 ```
 
-## Introduction - Why Poisson Distribution?
-
-Sports betting has been the topic of many research papers. The most common assumption by authors is the Poisson distribution of goals per match. The reason might be visually demonstrated in the following figure. We may see that goals per match follow some pattern that is very close to Poisson type distribution.
-
-From the picture we can see that there is very little difference between seasons - only two seasons compared, but the picture would be very similar in any season.
-
-```{r Poisson Visualization, echo=FALSE, error=F, message=FALSE, warning=FALSE}
-ggplot(data = other_seasons_woe %>%
-         as.data.frame() %>%
-         filter(season %in% c("1718", "1617")) %>%
-         group_by(season, n_goals) %>%
-         summarise(c_n_goals = n()) %>%
-         as.data.frame() %>%
-         group_by(season) %>%
-         mutate(t_n_goals = sum(c_n_goals)) %>%
-         as.data.frame() %>%
-         mutate(avg_goals = sum(n_goals * c_n_goals) / sum(c_n_goals)) %>%
-         mutate(poisson_data = dpois(n_goals, avg_goals))) +
-  geom_bar(aes(x = n_goals, 
-               y = c_n_goals/t_n_goals, 
-               fill = season), 
-           stat = "identity", position = position_dodge()) +
-  geom_line(aes(x = n_goals, y = poisson_data, col = "Poisson")) +
-  
-  ggtitle(label = "Number of goals per match (Season 2016/2017 & 2017/2018)", 
-          subtitle = "by Season") +
-  xlab("Number of goals") +
-  ylab("Distribution") +
-  scale_fill_brewer(palette="Paired")
-```
-
-### Nonlinearity of relationship between `n_goals` and explanatory variables?
-
-Interesting pattern was recognized when preparing the visualization. It appears that variables considered in the final model might have some nonlinear relationship to number of goals per match. Let's consider variable `n_goals_last_10`. In the matches, where the team did score less than 3 goals it appears that `n_goals_last_10` does not vary across season with the change of goals per match - i.e. constant mean. However, we may see that if the team scored more than 2 goals in the match, the relationship becomes rather positive linear. This sort of forms two regions - i.e. `n_goals` up to 2, and above 2. We may consider it in the model development stage.
-
-Similar behavior might be seen in other variables as well.
-
-```{r n goals last_20, echo=FALSE, error=F, message=FALSE, warning=FALSE}
-ggplot(data = other_seasons_bhm %>%
-         as.data.frame() %>%
-         filter(season %in% c("1718", "1617"))) +
-  geom_boxplot(aes(x = as.factor(n_goals), 
-                   y = n_goals__last_20, 
-                   fill = season), 
-               outlier.shape = NA) +
-  
-  ggtitle(label = "Comparison of distributions (Season 2016/2017 & 2017/2018)", 
-          subtitle = "by Season") +
-  ylim(c(0, 4)) +
-  xlab("Number of goals") +
-  ylab("Mean #goals (last 10 matches)") +
-  scale_fill_brewer(palette="Paired")
-```
-
-```{r match res last_20, warning = F, message = F, error = F}
-ggplot(data = other_seasons_bhm %>%
-         as.data.frame() %>%
-         filter(season %in% c("1718", "1617"))) +
-  
-  geom_boxplot(aes(x = as.factor(n_goals), 
-                   y = match_results__last_20, 
-                   fill = season), 
-               outlier.shape = NA) +
-  
-  ggtitle(label = "Comparison of distributions (Season 2016/2017 & 2017/2018)", 
-          subtitle = "by Season") +
-  ylim(c(0, 1.1)) +
-  xlab("Number of goals") +
-  ylab("Mean match result (last 10 matches)") +
-  scale_fill_brewer(palette="Paired")
-
-```
-
-```{r shots on target last_10, warning = F, message = F, error = F}
-ggplot(data = other_seasons_bhm %>%
-         as.data.frame() %>%
-         filter(season %in% c("1718", "1617"))) +
-  geom_boxplot(aes(x = as.factor(n_goals), 
-                   y = n_shots_ontarget__last_10, fill = season), 
-               outlier.shape = NA) +
-  
-  ggtitle(label = "Comparison of distributions (Season 2016/2017 & 2017/2018)", 
-          subtitle = "by Season") +
-  ylim(c(0, 10)) +
-  xlab("Number of goals") +
-  ylab("Mean  #shots on target (last 10 matches)") +
-  scale_fill_brewer(palette="Paired")
-```
-
 ## Model Estimation
 
 Two approaches are compared in this place, namely GLM model with Poisson Distribution and hurdle model. The latter one is set with logit link function and binomial distribution - i.e. firstly the logit is estimated to predict if the the team scores and if the team scores the second part consists of Poisson distribution. It means that the special distribution is concerned when the team does not score.
 
 ```{r Model GLM}
-glm_model <- 
-  glm(n_goals ~ is_home + 
-        league + 
-        r_ah_advantage_last_10 + n_shots_ontarget_last_10 + n_goals_last_20 +
-        n_goals_last_10 + r_ah_advantage_season_last_10 + 
-        #r_team_odds_last_20 + r_team_odds_last_10 + 
-        match_results_last_20 + 
-        r_ah_advantage_last_20 + r_season_strength_ah_last_10,
-      
-      family = "poisson",
-      data = other_seasons_woe %>%
-        mutate(is_home = ifelse(is_home == 1, "yes", "no")) %>%
-        rename_all(~stringr::str_replace_all(., "__", "_")) %>%
-        rename_all(~stringr::str_replace_all(., "woe.", "")) %>%
-        rename_all(~stringr::str_replace_all(., ".binned", "")) %>%
-        as.data.frame())
+model_vars <- c(unique(var_importance$data$Variable), "is_home", "n_goals")
+master_data <- master_data %>%
+  group_by(data_type) %>%
+  mutate(glm_data = 
+           map(binned_data, 
+               function(i_data){
+                 i_data %>%
+                   select(one_of(model_vars)) %>%
+                   mutate(is_home = ifelse(is_home == 1, "yes", "no")) %>%
+                   rename_all(~stringr::str_replace_all(., "__", "_")) %>%
+                   rename_all(~stringr::str_replace_all(., "woe.", "")) %>%
+                   rename_all(~stringr::str_replace_all(., ".binned", "")) %>%
+                   as.data.frame()
+               }))
 
-hurdle_model <- 
-  hurdle(n_goals ~ is_home + 
-           league + 
-           r_ah_advantage_last_10 + n_shots_ontarget_last_10 + n_goals_last_20 +
-           n_goals_last_10 + r_ah_advantage_season_last_10 + 
-           #r_team_odds_last_20 + r_team_odds_last_10 + 
-           match_results_last_20 + 
-           r_ah_advantage_last_20 + r_season_strength_ah_last_10 | is_home + 
-           league + 
-           r_ah_advantage_last_10 + n_shots_ontarget_last_10 + n_goals_last_20 +
-           n_goals_last_10 + r_ah_advantage_season_last_10 + 
-           r_team_odds_last_20 + r_team_odds_last_10 + match_results_last_20 + 
-           r_ah_advantage_last_20 + r_season_strength_ah_last_10,
-         
-         dist = "poisson",
-         link = "logit",
-         zero.dist = "binomial",
-         
-         data = other_seasons_woe %>%
-           mutate(is_home = ifelse(is_home == 1, "yes", "no")) %>%
-           rename_all(~stringr::str_replace_all(., "__", "_")) %>%
-           rename_all(~stringr::str_replace_all(., "woe.", "")) %>%
-           rename_all(~stringr::str_replace_all(., ".binned", "")) %>%
-           as.data.frame())
+# - calculate full model
+glm_model <- 
+  glm(n_goals ~ ., 
+      family = "poisson", 
+      data = master_data %>%
+        filter(data_type %in% "Train") %>%
+        select(data_type, glm_data) %>%
+        unnest(c(glm_data)) %>%
+        as.data.frame() %>%
+        select(-data_type))
+
+# - select only subset of variables based on VIF
+vif_glm_model <- data.frame("vif" = car::vif(glm_model))
+final_vars <- rownames(vif_glm_model %>% filter(vif <= 5))
+model_data <- 
+  master_data %>%
+  filter(data_type %in% "Train") %>%
+  select(data_type, glm_data) %>%
+  unnest(c(glm_data)) %>%
+  as.data.frame() %>%
+  select(-data_type) %>%
+  select(n_goals, one_of(final_vars))
+
+# - estimate final models
+glm_m_final <- glm(n_goals ~ ., family = "poisson", data = model_data)
+
+hurdle_model <- hurdle(n_goals ~ ., dist = "poisson", 
+                       link = "logit", zero.dist = "binomial", 
+                       data = model_data)
 ```
 
 ### Summary of GLM Model
 
-```{r}
-summ(glm_model, digits = 5)
+```{r echo = FALSE}
+print(summary(glm_m_final))
 ```
 
 ### Summary of Hurdle Model
 
-```{r echo=FALSE}
+```{r echo = FALSE}
 print(summary(hurdle_model))
 ```
 
-### Comparison of Empirical and Estimated Distributions
-
-Now we compare obtained distribution from data and from the GLM model. As we see in the following figure, the distributions are approximated by the model very well, i.e. the initial assumption about Poisson distribution was ideal for this data. Hurdle model captured beginning of teh curve slightly better.
-
-```{r echo=FALSE, error=F, message=FALSE, warning=FALSE}
-other_seasons_woe$lambda_pred <-
-  predict.glm(glm_model, 
-              newdata = other_seasons_woe %>%
-                mutate(is_home = ifelse(is_home == 1, "yes", "no")) %>%
-                rename_all(~stringr::str_replace_all(., "__", "_")) %>%
-                rename_all(~stringr::str_replace_all(., "woe.", "")) %>%
-                rename_all(~stringr::str_replace_all(., ".binned", "")) %>%
-                as.data.frame(), type = "response")
-
-ggplot(data = expand.grid(season = c("1617", "1718"),
-                          n_goals = c(0:7)) %>%
-         left_join(., other_seasons_woe %>%
-                     group_by(season) %>%
-                     summarise(mean_l = mean(lambda_pred))) %>%
-         rowwise() %>%
-         mutate(pred_poisson = dpois(n_goals, mean_l)) %>%
-         select(-mean_l) %>%
-         
-         left_join(., other_seasons_woe %>%
-                     as.data.frame() %>%
-                     group_by(season, n_goals) %>%
-                     summarise(c_n_goals = n()) %>%
-                     as.data.frame() %>%
-                     group_by(season) %>%
-                     mutate(t_n_goals = sum(c_n_goals)) %>%
-                     mutate(avg_goals = sum(n_goals * c_n_goals) / sum(c_n_goals)) %>%
-                     group_by(season) %>%
-                     summarise(act_mean_l = mean(avg_goals)) %>%
-                     as.data.frame()) %>%
-         rowwise() %>%
-         mutate(actual_poisson = dpois(n_goals, act_mean_l)) %>%
-         select(season, n_goals, actual_poisson, pred_poisson)) +
-  geom_point(aes(n_goals, y = pred_poisson, col = "Prediction")) +
-  geom_line(aes(n_goals, y = actual_poisson, col = "Measured")) +
-  facet_grid(~season) +
-  xlab("Number of goals") +
-  ylab("Predicted & Actual Distribution") +
-  ggtitle("Distributions Comparison", subtitle = "GLM Model")
-
-```
-
-```{r echo=FALSE, error=F, message=FALSE, warning=FALSE}
-other_seasons_woe$lambda_pred <-
-  predict(hurdle_model, 
-          newdata = other_seasons_woe %>%
-            mutate(is_home = ifelse(is_home == 1, "yes", "no")) %>%
-            rename_all(~stringr::str_replace_all(., "__", "_")) %>%
-            rename_all(~stringr::str_replace_all(., "woe.", "")) %>%
-            rename_all(~stringr::str_replace_all(., ".binned", "")) %>%
-            as.data.frame(), type = "response")
-
-ggplot(data = expand.grid(season = c("1617", "1718"),
-                          n_goals = c(0:7)) %>%
-         left_join(., other_seasons_woe %>%
-                     group_by(season) %>%
-                     summarise(mean_l = mean(lambda_pred))) %>%
-         rowwise() %>%
-         mutate(pred_poisson = dpois(n_goals, mean_l)) %>%
-         select(-mean_l) %>%
-         
-         left_join(., other_seasons_woe %>%
-                     as.data.frame() %>%
-                     group_by(season, n_goals) %>%
-                     summarise(c_n_goals = n()) %>%
-                     as.data.frame() %>%
-                     group_by(season) %>%
-                     mutate(t_n_goals = sum(c_n_goals)) %>%
-                     mutate(avg_goals = sum(n_goals * c_n_goals) / sum(c_n_goals)) %>%
-                     group_by(season) %>%
-                     summarise(act_mean_l = mean(avg_goals)) %>%
-                     as.data.frame()) %>%
-         rowwise() %>%
-         mutate(actual_poisson = dpois(n_goals, act_mean_l)) %>%
-         select(season, n_goals, actual_poisson, pred_poisson)) +
-  geom_point(aes(n_goals, y = pred_poisson, col = "Prediction")) +
-  geom_line(aes(n_goals, y = actual_poisson, col = "Measured")) +
-  facet_grid(~season) +
-  xlab("Number of goals") +
-  ylab("Predicted & Actual Distribution") +
-  ggtitle("Distribution Comparison", subtitle = "Hurdle Model")
-
-```
-
-## Betting Strategy Evaluation of 2018/2019 & 2019/2020 Season
-
-```{r Betting Strategy, echo=FALSE, error=F, message=FALSE, warning=FALSE}
-temp_eval <- season_1819 %>%
-  rbind(., season_1920) %>%
+```{r Prepare Data, echo = F, error = F, message = F, warning = F}
+master_data <- 
+  master_data %>%
+  group_by(data_type) %>%
   
-  # - getting predictions
-  mutate(is_home = ifelse(is_home == 1, "yes", "no")) %>%
-  rename_all(~stringr::str_replace_all(., "__", "_")) %>%
-  rename_all(~stringr::str_replace_all(., "woe.", "")) %>%
-  rename_all(~stringr::str_replace_all(., ".binned", "")) %>%
+  # - Apply Model
+  mutate(pred_data = 
+           map(glm_data, function(i_data){
+             data.frame(glm_pred = 
+                          predict(glm_m_final, 
+                                  newdata = i_data, 
+                                  type = "response"),
+                        hurdle_pred = predict(hurdle_model, 
+                                              newdata = i_data, 
+                                              type = "response"))
+           }))
+
+eval_dataset <-
+  master_data %>%
+  
+  # - keep prediction and variables
+  select(-binned_data, -glm_data) %>%
+  unnest(c(data, pred_data)) %>%
   as.data.frame() %>%
-  mutate(pred_glm = predict(glm_model, newdata = ., type = "response"),
-         pred_hurdle = predict(hurdle_model, newdata = ., type = "response")) %>%
-  mutate(is_home = as.character(ifelse(is_home == "yes", "HomeTeam", "AwayTeam"))) %>%
+  select(data_type, league, team, is_home, season, created_at, 
+         match_id, n_goals, glm_pred, hurdle_pred) %>%
+  gather(., model_name, est_value, 
+         -data_type, -league, -team, -is_home, -season, -created_at, 
+         -match_id, -n_goals) %>%
+  as.data.frame() %>%
   
-  # - transforming predictions
-  select(league, season, created_at, match_id, team, is_home, n_goals, match_results, pred_glm, pred_hurdle) %>%
-  group_by(league, season, created_at, match_id) %>%
+  # - categorize data
+  mutate(m_pred = ifelse(is.na(est_value), "Missing Prediction", "OK")) %>%
+  as.data.frame() %>%
+  mutate(is_home = ifelse(is_home == 1, "HomeTeam", "AwayTeam")) %>%
+  
+  group_by(data_type, league, season, created_at, match_id, model_name) %>%
+  mutate(total_goals = sum(n_goals)) %>%
+  select(-n_goals) %>%
+  as.data.frame() %>%
+  mutate(var_home = ifelse(is_home == "HomeTeam", "HTL", "ATL")) %>%
+  group_by(data_type, league, season, created_at, match_id, 
+           model_name, total_goals, m_pred) %>%
   nest() %>%
-  rename(pred_data = data) %>%
+  rename(d_match = data) %>%
   
-  # - get GLM predictions
-  mutate(glm_poisson = 
-           map(pred_data, 
-               function(i_data){
-                 team_1 <- matrix(dpois(x = c(0:10), i_data$pred_glm[1]), ncol = 1)
-                 team_2 <- matrix(dpois(x = c(0:10), i_data$pred_glm[2]), nrow = 1)
-                 
-                 mat_res <- team_1 %*% team_2
-                 res_under <- 
-                   mat_res[1,1] + mat_res[1,2] + mat_res[1,3] +
-                   mat_res[2,1] + mat_res[2,2] +
-                   mat_res[3,1]
-                 
-                 res_temp <- 
-                   data.frame("col1" = res_under, 
-                              "col2" = 1 - res_under) %>%
-                   mutate(pred_res = ifelse(col1 > col2, "Under 2.5", "Over 2.5"),
-                          pred_prob = ifelse(col1 > col2, col1, col2))
-                 
-                 names(res_temp) <- c("Under 2.5", "Over 2.5", "pred_res", "pred_prob")
-                 return(res_temp)
-               })) %>%
-  
-  # - get GLM predictions
-  mutate(hurdle_poisson = 
-           map(pred_data, 
-               function(i_data){
-                 team_1 <- matrix(dpois(x = c(0:10), i_data$pred_hurdle[1]), ncol = 1)
-                 team_2 <- matrix(dpois(x = c(0:10), i_data$pred_hurdle[2]), nrow = 1)
-                 
-                 mat_res <- team_1 %*% team_2
-                 res_under <- 
-                   mat_res[1,1] + mat_res[1,2] + mat_res[1,3] +
-                   mat_res[2,1] + mat_res[2,2] +
-                   mat_res[3,1]
-                 
-                 res_temp <- 
-                   data.frame("col1" = res_under, 
-                              "col2" = 1 - res_under) %>%
-                   mutate(pred_res = ifelse(col1 > col2, "Under 2.5", "Over 2.5"),
-                          pred_prob = ifelse(col1 > col2, col1, col2))
-                 
-                 names(res_temp) <- c("Under 2.5", "Over 2.5", "pred_res", "pred_prob")
-                 return(res_temp)
-               })) %>%
-  
-  # - get week
-  mutate(y_week = lubridate::week(created_at),
-         y_year = lubridate::year(created_at)) %>%
-  
-  # - check second match
+  # - does team has opponent?
   mutate(second_match = 
-           map(pred_data, 
+           map(d_match, 
                function(i_data) 
                  data.frame("status" = 
                               ifelse(nrow(i_data) != 2, 
                                      "Second Team Not Found", "OK")))) %>%
-  unnest(c(second_match))
-```
-
-```{r echo=FALSE}
-temp_eval2 <- temp_eval %>%
-  filter(status == "OK") %>%
-  group_by(league, season, created_at, match_id) %>%
-  mutate(pred_adj = 
-           map(pred_data, function(i_data){
-             home_t <- i_data$team[i_data$is_home == "HomeTeam"]
-             away_t <- i_data$team[i_data$is_home == "AwayTeam"]
-             
-             data.frame(match_name = paste(home_t, away_t, sep = " - "),
-                        n_goals_cat = ifelse(sum(i_data$n_goals) > 2.5, 
-                                             "Over 2.5", "Under 2.5"))
-           })) %>%
-  unnest(c(pred_adj)) %>%
-  select(-pred_data) %>%
+  unnest(c(second_match)) %>%
   
-  # - unnest GLM Prediction
-  unnest(c(glm_poisson)) %>%
-  select(-`Under 2.5`, -`Over 2.5`) %>%
-  rename(glm_result = pred_res,
-         glm_prob = pred_prob) %>%
-  
-  # - unnest Hurdle Prediction
-  unnest(c(hurdle_poisson)) %>%
-  select(-`Under 2.5`, -`Over 2.5`) %>%
-  rename(hurdle_result = pred_res,
-         hurdle_prob = pred_prob) %>%
-  
-  group_by(y_year, y_week) %>%
-  nest() %>%
-  
-  # - getting bookmakers odds
-  mutate(odds_data = 
-           map(data, function(i_data){
-             
-             i_data %>%
-               left_join(., t_match_stats %>% 
-                           select(season, league, created_at, 
-                                  match_id, `b365.2.5`, `b365.2.5.1`, 
-                                  `p.2.5`, `p.2.5.1`, `gb.2.5`, `gb.2.5.1`) %>%
-                           distinct()) %>%
-               as.data.frame() %>%
-               rowwise() %>%
-               mutate(odds_25 = 
-                        coalesce(`b365.2.5`, `p.2.5`, `gb.2.5`),
-                      odds_251 = 
-                        coalesce(`b365.2.5.1`, `p.2.5.1`, `gb.2.5.1`)) %>%
-               select(-`b365.2.5`, -`b365.2.5.1`, -`p.2.5`, 
-                      -`p.2.5.1`, -`gb.2.5`, -`gb.2.5.1`) %>%
-               na.omit()})) %>%
-  select(-data) %>%
-  unnest(c(odds_data)) %>%
-  na.omit()
-
-min_kelly_share <- 0.1
-kelly_data <-
-  temp_eval2 %>%
-  as.data.frame() %>%
-  select(-match_id, -status, -y_week, -y_year) %>%
-  group_by(created_at) %>%
-  
-  # - Compute Kelly Criterion
-  mutate(glm_kelly = 
-           (glm_prob * 
-              (ifelse(glm_result == "Under 2.5", 
-                      odds_25, odds_251)) - 1)/ifelse(glm_result == "Under 2.5", 
-                                                      odds_25, odds_251)) %>%
-  mutate(hurdle_kelly = 
-           (hurdle_prob * 
-              (ifelse(hurdle_result == "Under 2.5", 
-                      odds_25, odds_251)) - 1)/ifelse(hurdle_result == "Under 2.5", 
-                                                      odds_25, odds_251)) %>%
+  # - get match characteristics
+  filter(m_pred == "OK" & status == "OK") %>%
+  group_by(m_pred, data_type, league, season, created_at, 
+           match_id, model_name, total_goals) %>%
+  mutate(match_result = map(d_match, function(i_data){
+    
+    data.frame("HomeTeam" = i_data$team[i_data$is_home %in% "HomeTeam"],
+               "AwayTeam" = i_data$team[i_data$is_home %in% "AwayTeam"],
+               "HTL" = i_data$est_value[i_data$is_home %in% "HomeTeam"],
+               "ATL" = i_data$est_value[i_data$is_home %in% "AwayTeam"])
+    
+  })) %>%
+  select(-d_match) %>%
+  unnest(c(match_result)) %>%
   as.data.frame() %>%
   
-  # - Pick only Value Bets
-  mutate(glm_kelly_picked = ifelse(glm_kelly > min_kelly_share, 1, 0),
-         hurdle_kelly_picked = ifelse(hurdle_kelly > min_kelly_share, 1, 0)) %>%
+  select(-m_pred, -status) %>%
+  as.data.frame() %>%
   
-  # - Calculate dummy win (-1, 1)
-  rowwise() %>%
-  mutate(glm_kelly_win = ifelse(glm_result == n_goals_cat, 
-                                glm_kelly_picked * 1, 
-                                glm_kelly_picked * (-1)),
-         hurdle_kelly_win = ifelse(hurdle_result == n_goals_cat, 
-                                   hurdle_kelly_picked * 1, 
-                                   hurdle_kelly_picked * (-1))) %>%
+  # - get probabilities
+  mutate(prob_under = dpois(0, HTL) * dpois(0, ATL) +
+           dpois(0, HTL) * dpois(1, ATL) +
+           dpois(0, HTL) * dpois(2, ATL) +
+           
+           dpois(1, HTL) * dpois(0, ATL) +
+           dpois(2, HTL) * dpois(0, ATL) +
+           dpois(1, HTL) * dpois(1, ATL)) %>%
+  mutate(prob_over = 1 - prob_under) %>%
+  mutate(pred_res = ifelse(prob_over > prob_under, "Over 2.5", "Under 2.5"),
+         pred_prob = ifelse(prob_over > prob_under, prob_over, prob_under)) %>%
+  as.data.frame() %>%
   
+  # - get actual odds by bookmakers
+  left_join(., t_match_stats %>% 
+              select(season, league, created_at, 
+                     match_id, `b365.2.5`, `b365.2.5.1`, 
+                     `p.2.5`, `p.2.5.1`, `gb.2.5`, `gb.2.5.1`) %>%
+              distinct()) %>%
+  as.data.frame() %>%
   rowwise() %>%
-  mutate(return = ifelse(n_goals_cat == "Under 2.5", odds_25, odds_251)) %>%
-  mutate(glm_net_profit = 
-           glm_kelly * 
-           glm_kelly_picked * 
-           glm_kelly_win,
-         hurdle_net_profit = 
-           hurdle_kelly * 
-           hurdle_kelly_picked * 
-           hurdle_kelly_win) %>%
-  arrange(created_at) %>%
-  as.data.frame()
+  mutate(odds_25 = coalesce(`b365.2.5`, `p.2.5`, `gb.2.5`),
+         odds_251 = coalesce(`b365.2.5.1`, `p.2.5.1`, `gb.2.5.1`)) %>%
+  select(-`b365.2.5`, -`b365.2.5.1`, -`p.2.5`, 
+         -`p.2.5.1`, -`gb.2.5`, -`gb.2.5.1`)
 
-kelly_data$glm_wealth <- 
-  5000 * 
-  kelly_data$glm_net_profit * 
-  ifelse(kelly_data$glm_kelly_win == 1, kelly_data$return, 1)
+eval_masterdata <- eval_dataset %>%
+  crossing(., expand.grid("min_kelly" = c(0.05, 0.1, 0.15, 0.2),
+                          "kelly_ratio" = c(1, 0.5, 0.25))) %>%
+  as.data.frame() %>%
+  mutate(kelly_c = 
+           coalesce(ifelse(pred_res == "Over 2.5", 
+                           (pred_prob * odds_251 - 1)/odds_251, 
+                           (pred_prob * odds_25 - 1)/odds_25), 0)) %>%
+  mutate(n_goals_cat = ifelse(total_goals > 2.5, "Over 2.5", "Under_2.5")) %>%
+  mutate(b_return = coalesce(ifelse(prob_over > prob_under, odds_251, odds_25), 0)) %>%
+  mutate(kelly_bet_return = 
+           ifelse(kelly_c >= min_kelly, kelly_c * kelly_ratio * 5000, 0) *
+           ifelse(n_goals_cat == pred_res, b_return, - 1))
 
-kelly_data$hurdle_wealth <- 
-  5000 * 
-  kelly_data$hurdle_net_profit * 
-  ifelse(kelly_data$hurdle_kelly_win == 1, kelly_data$return, 1)
-
-ggplot(kelly_data) +
-  geom_line(aes(x = created_at, 
-                y = cumsum(glm_wealth)/(c(1:nrow(kelly_data)) * 5000),
-                col = "GLM Model")) +
-  geom_line(aes(x = created_at, 
-                y = cumsum(hurdle_wealth)/(c(1:nrow(kelly_data)) * 5000),
-                col = "Hurdle Model")) +
-  ggtitle("Comparison of average return per match",
-          subtitle = "by Estimated Models") +
-  xlab("Date") +
-  ylab("Average Returns per Match")
-```
-
-## Cumulative Accuracy of Kelly Criterion when `k = min(k)`
-```{r echo=FALSE, error=F, message=FALSE, warning=FALSE}
-offset_kelly <- kelly_data$glm_kelly
-abs_kelly <- abs(min(kelly_data$glm_kelly))
-stand_kelly <- (offset_kelly + abs_kelly)/max(offset_kelly + abs_kelly)
-pred_result <- data.frame(n_goals_cat = kelly_data$n_goals_cat,
-                          glm_goals_cat = kelly_data$glm_result,
-                          stand_kelly = stand_kelly, 
-                          abs_kelly = abs_kelly,
-                          offset_kelly = offset_kelly,
-                          threshold_kelly = abs_kelly + offset_kelly)
-
-pred_result$pred_res = as.numeric(pred_result$n_goals_cat == pred_result$glm_goals_cat)
-
-ggplot(pred_result %>%
-         filter(offset_kelly > min_kelly_share) %>%
-         arrange(offset_kelly) %>%
-         as.data.frame() %>%
-         mutate(ratio_win = cumsum(pred_res)/(row_number() + 1))) +
-  geom_point(aes(x = offset_kelly, y = ratio_win, alpha = 0.1)) +
-  ggtitle("Cumulative Accuracy as relationship to Kelly Criterion",
-          subtitle = "GLM Model with Poisson Distribution") +
-  xlab("Kelly Criterion") +
-  ylab("Accuracy") +
-  stat_smooth(aes(x = offset_kelly, y = ratio_win), se = T)
-```
-
-## List of FIRST50 Matches
-```{r eval=FALSE, include=FALSE}
-kelly_table <- kelly_data %>%
-  filter(glm_kelly_win != 0 & hurdle_kelly_win != 0) %>%
-  select(-odds_25, -odds_251, -glm_kelly_picked, 
-         -hurdle_kelly_picked, -glm_kelly_win, -hurdle_kelly_win) %>%
-  as.data.frame()
-
-knitr::kable(kelly_table[1:50,], digits = 3)
+write.xlsx(x = 
+             eval_masterdata %>%
+             group_by(data_type, season, model_name, min_kelly, kelly_ratio) %>%
+             summarise(t_match = n(),
+                       t_b_match = sum(kelly_bet_return != 0),
+                       return = 
+                         coalesce(sum(kelly_bet_return)/(sum(kelly_bet_return != 0) * 5000), 0)) %>%
+             as.data.frame(), 
+           file = output_file, 
+           sheetName = "Results", 
+           row.names = F)
 ```
