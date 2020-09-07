@@ -8,7 +8,7 @@ output:
 subtitle: Variable selection using ElasticNet with stratified cross-validation for hyper-parameter tuning
 ---
 
-```{r setup, include=FALSE}
+```{r setup, include = F}
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
@@ -18,20 +18,41 @@ knitr::opts_chunk$set(echo = TRUE)
 
 Especially interesting, for this exercise, is to use standardized user interface provided in the package `tidymodels`.
 
-```{r ElasticNet, warning = F, message = F, error = F}
+```{r ElasticNet, warning = F, message = F, error = T}
 library(vip)
 library(tidymodels)
 library(stringr)
 library(tidyverse)
+library(recipes)
+
+# ----- Specify Output Path -----
+proj_path <- "C:/Users/Peter/Desktop/ds_projects/betting_data_science"
+folder_path <- "6 betting/1 model development/preliminary_data"
+file_path <- "1a variable selection - binning.RData"
+out_file_path <- "1b elastic net modelling.RData"
+
+input_path <- paste(proj_path, "/", folder_path, "/", file_path, sep = "")
 
 # ----- Upload Image -----
-load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/1a variable selection - binning.RData")
+load(input_path)
+
+# - set output folder
+output_path <- paste(proj_path, "/", folder_path, "/", out_file_path, sep = "")
+
+rm(proj_path)
+rm(folder_path)
+rm(file_path)
+rm(out_file_path)
 
 # ----- Upsampled Data for Modelling -----
 train_data_glm <- 
-  recipe(n_goals_cat ~ ., data = other_seasons_woe %>% 
-           select(-league, -team, -is_home, -season, 
-                  -created_at, -match_id, -n_goals, -match_results) %>%
+  recipe(n_goals_cat ~ ., 
+         data = master_data %>%
+           filter(data_type %in% "Train") %>%
+           select(data_type, binned_data) %>%
+           unnest(c(binned_data)) %>%
+           as.data.frame() %>%
+           select(-data_type, -is_home, -created_at, -match_id, -n_goals) %>%
            mutate_if(is.character, as.factor)) %>%
   themis::step_upsample(n_goals_cat) %>%
   prep() %>%
@@ -84,64 +105,31 @@ ml_model_fit <-
 var_importance <- 
   ml_model_fit %>% 
   pull_workflow_fit() %>% 
-  vip(num_features = 10)
-
-bhm_vars <- 
-  c("league", "team", "is_home", "season", "created_at", "match_id", "n_goals", 
-    "match_results", "n_goals_cat",
-    str_remove(str_remove(var_importance$data$Variable, "woe."), ".binned"))
-
-# ----- Sub-setting Data for Bayesian Hierarchical Model -----
-season_1819_bhm <- 
-  season_1819 %>%
-  select(one_of(bhm_vars))
-
-season_1920_bhm <- 
-  season_1920 %>%
-  select(one_of(bhm_vars))
-
-other_seasons_bhm <- 
-  other_seasons %>%
-  cbind(., predict(ml_model_fit, new_data = other_seasons_woe),
-        predict(ml_model_fit, new_data = other_seasons_woe, type = "prob")) %>%
-  as.data.frame() %>%
-  rowwise() %>%
-  mutate(prob = max(`.pred_Over 2.5`, `.pred_Under 2.5`)) %>%
-  select(-`.pred_Over 2.5`, -`.pred_Under 2.5`) %>%
-  as.data.frame() %>%
-  filter(`.pred_class` == n_goals_cat) %>%
-  select(one_of(bhm_vars))
-
-# ----- for Bayesian Hierarchical Model -----
-norm_vars <- 
-  str_remove(str_remove(var_importance$data$Variable, "woe."), ".binned")
-rec_normalization <- 
-  recipe(n_goals ~ ., data = other_seasons_bhm) %>%
-  step_bagimpute(any_of(norm_vars))
-
-train_data_bhm <- 
-  rec_normalization %>%
-  prep() %>%
-  juice()
-names(train_data_bhm) <- str_replace_all(names(train_data_bhm), "__", "_")
+  vip(num_features = 15)
 ```
 
 ## Variable Importance
 
-```{r pressure, echo=FALSE}
+```{r Variable Importance, echo = F}
 ml_model_fit %>% 
   pull_workflow_fit() %>% 
   vip(num_features = 15)
 ```
 
 ## Grid Search Results
-```{r, echo=FALSE}
+```{r Grid Search, echo = F}
 autoplot(glmn_tune, 
          metric = "roc_auc") +
   labs(title = "Results of Grid Search for Parameters of a Elastic Net") +
   ylab(label = "ROCAUC")
 ```
 
-```{r Save, error = T, message = F, warning = F, include = T}
-save.image("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/1b elastic net modelling.RData")
+```{r Save, error=T, message=FALSE, warning=FALSE}
+rm(ctrl)
+rm(cv_splits)
+rm(glmn_grid)
+rm(glmn_set)
+rm(glmn_tune)
+
+save.image(output_path)
 ```
