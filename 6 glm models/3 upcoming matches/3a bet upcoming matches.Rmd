@@ -2,7 +2,9 @@
 title: "Betting on Upcoming Matches"
 author: "Ing. Peter Tomko, M.A."
 date: "7/9/2020"
-output: html_document
+output:
+  pdf_document: default
+  html_document: default
 ---
 
 ```{r setup, include = F}
@@ -22,7 +24,7 @@ bet_stake <- 5000
 con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
 ```
 
-```{sql Last Matches, connection = con, output.var = "v_upcoming_matches"}
+```{sql Upcoming Matches, connection = con, output.var = "v_upcoming_matches"}
 select distinct created_at, dateclosed, fullname, sport_league, 
 trim(BOTH from t_home_team) as t_home_team,
 trim(BOTH from t_away_team) as t_away_team,
@@ -30,14 +32,18 @@ rate from v_upcoming_matches;
 ```
 
 ```{sql Last Matches, connection = con, output.var = "t_mapping_team"}
-select distinct tipsport_league, results_league, 
-trim(BOTH from results_team) as results_team, 
-trim(BOTH from tipsport_team) as tipsport_team 
+select distinct tipsport_league, results_league, results_team, string_agg(tipsport_team, '') as tipsport_team from
+(select distinct created_at, tipsport_league, results_league, results_team, tipsport_team, last_update
 from 
-(select *, 
+(select created_at, 
+trim(both tipsport_league) as tipsport_league, 
+trim(both results_league) as results_league, 
+trim(both results_team) as results_team, 
+trim(both tipsport_team) as tipsport_team, 
 max(created_at) over(partition by tipsport_league, results_league, results_team, tipsport_team) as last_update 
-from t_mapping_team) as m_data 
-where created_at = last_update;
+from t_mapping_team) as m_data
+where created_at = last_update) actual_mapping
+group by tipsport_league, results_league, results_team;
 ```
 
 ```{sql Target Variable, connection = con, output.var = "v_match_stats"}
