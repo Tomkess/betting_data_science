@@ -27,7 +27,7 @@ library(recipes)
 
 # ----- Specify Output Path -----
 proj_path <- "C:/Users/Peter/Desktop/ds_projects/betting_data_science"
-folder_path <- "6 betting/1 model development/preliminary_data"
+folder_path <- "6 glm models/1 model development/preliminary_data"
 file_path <- "1a variable selection - binning.RData"
 out_file_path <- "1b elastic net modelling.RData"
 

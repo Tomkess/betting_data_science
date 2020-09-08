@@ -18,8 +18,8 @@ library(xlsx)
 
 # ----- Specify Output Path -----
 proj_path <- "C:/Users/Peter/Desktop/ds_projects/betting_data_science"
-folder_path <- "6 betting/1 model development/preliminary_data"
-hist_path <- "6 betting/2 historical performance"
+folder_path <- "6 glm models/1 model development/preliminary_data"
+hist_path <- "6 glm models/2 historical performance"
 excel_output <- "evaluation_Data.xlsx"
 file_path <- "1b elastic net modelling.RData"
 
@@ -234,5 +234,5 @@ write.xlsx(x =
 
 rm(list = ls()[!(ls() %in% c("glm_m_final", "hurdle_model"))])
 
-save.image("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/glm_models.RData")
+save.image("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 glm models/1 model development/preliminary_data/glm_models.RData")
 ```

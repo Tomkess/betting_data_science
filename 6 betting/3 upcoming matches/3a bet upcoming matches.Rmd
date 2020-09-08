@@ -194,7 +194,7 @@ d_upcoming_matches <- d_upcoming_matches %>%
 ```
 
 ```{r Apply Binning, message = F, error = T, warning = F}
-load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/1a variable selection - binning.RData")
+load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 glm models/1 model development/preliminary_data/1a variable selection - binning.RData")
 
 rm(master_data)
 rm(binning_output)
@@ -227,7 +227,7 @@ d_upcoming_matches <- d_upcoming_matches %>%
 ```
 
 ```{r Apply Models, message = F, error = T, warning = F}
-load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/glm_models.RData")
+load("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 glm models/1 model development/preliminary_data/glm_models.RData")
 
 d_upcoming_matches <- d_upcoming_matches %>%
   group_by(row_id) %>%

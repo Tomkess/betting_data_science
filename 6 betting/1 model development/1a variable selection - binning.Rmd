@@ -26,7 +26,7 @@ test_season <- c("1819", "1920", "2021")
 
 # ----- Specify Output Path -----
 proj_path <- "C:/Users/Peter/Desktop/ds_projects/betting_data_science"
-folder_path <- "6 betting/1 model development/preliminary_data"
+folder_path <- "6 glm models/1 model development/preliminary_data"
 file_path <- "1a variable selection - binning.RData"
 
 output_path <- paste(proj_path, "/", folder_path, "/", file_path, sep = "")
