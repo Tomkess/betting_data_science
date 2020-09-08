@@ -231,4 +231,8 @@ write.xlsx(x =
            file = output_file, 
            sheetName = "Results", 
            row.names = F)
+
+rm(list = ls()[!(ls() %in% c("glm_m_final", "hurdle_model"))])
+
+save.image("C:/Users/Peter/Desktop/ds_projects/betting_data_science/6 betting/1 model development/preliminary_data/glm_models.RData")
 ```
