@@ -33,11 +33,11 @@ con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
 ```
 
 ```{sql connection = con, output.var = "v_match_stats", eval = T, include = T, comment = F, echo = F}
-select distinct league, team from v_match_stats;
+select distinct trim(both league) as league, trim(both team) as team from v_match_stats;
 ```
 
 ```{sql connection = con, output.var = "t_mapping_league", eval = T, include = T, comment = F, echo = F}
-select distinct tipsport_league, results_league 
+select distinct trim(both tipsport_league) as tipsport_league, trim(both results_league) as results_league 
 from 
 (select *, 
 max(created_at) over(partition by tipsport_league, results_league) as last_update from t_mapping_league) as m_data 
@@ -45,12 +45,18 @@ where created_at = last_update;
 ```
 
 ```{sql connection = con, output.var = "t_mapping_team", eval = T, include = T, comment = F, echo = F}
-select distinct tipsport_league, results_league, results_team, tipsport_team 
+select distinct tipsport_league, results_league, results_team, string_agg(tipsport_team, '') as tipsport_team from
+(select distinct created_at, tipsport_league, results_league, results_team, tipsport_team, last_update
 from 
-(select *, 
+(select created_at, 
+trim(both tipsport_league) as tipsport_league, 
+trim(both results_league) as results_league, 
+trim(both results_team) as results_team, 
+trim(both tipsport_team) as tipsport_team, 
 max(created_at) over(partition by tipsport_league, results_league, results_team, tipsport_team) as last_update 
-from t_mapping_team) as m_data 
-where created_at = last_update;
+from t_mapping_team) as m_data
+where created_at = last_update) actual_mapping
+group by tipsport_league, results_league, results_team;
 ```
 
 ```{sql connection = con, output.var = "v_tipsport_bookmaker", eval = T, include = T, comment = F, echo = F}
@@ -220,8 +226,9 @@ result_teams <-
                    "Tipsport League" = "tipsport_league")) %>%
   rename(`Tipsport Team [DB]` = tipsport_team) %>%
   
-  # - join all tipsport team to results match to see what migth be easily joined
-  left_join(., tipsport_teams %>% mutate(`Join Status` = "Joined"), 
+  # - join all tipsport team to results match to see what might be easily joined
+  left_join(., tipsport_teams %>% mutate(`Join Status` = "Joined")
+            , 
             by= c("Tipsport League" = "Tipsport League", 
                   "team" = "Tipsport Team Name")) %>%
   
@@ -300,7 +307,7 @@ upload_team_changes <- eventReactive(input$upload_team_data, {
            tipsport_league = `Tipsport League`, 
            results_team = `Results Team Name`, 
            tipsport_team = `Tipsport Team Name`) %>%
-    filter(!(is.na(tipsport_team))) %>%
+    filter(!(is.na(tipsport_team)) & tipsport_team != "") %>%
     distinct() %>%
     as.data.frame()
   
