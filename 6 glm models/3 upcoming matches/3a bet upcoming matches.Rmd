@@ -12,6 +12,7 @@ library(tidyverse)
 library(tidymodels)
 library(woeBinning)
 library(stringr)
+library(DBI)
 
 current_season <- "2021"
 kelly_fraction <- 1
@@ -318,6 +319,13 @@ for(i in 1:nrow(bet_data)){
 
 temp_df <- output_ls %>% 
   bind_rows() %>% 
-  cbind(., bet_data %>% select(-data, -t_b_goals, -t_interval)) %>%
-  mutate(opt_stake = kelly_criterion * kelly_fraction * bet_stake)
+  cbind(., bet_data %>% 
+          select(-data, -t_b_goals, -t_interval, -tip_match_id)) %>%
+  mutate(opt_stake = kelly_criterion * kelly_fraction * bet_stake,
+         analysis_time = Sys.time())
+
+names(temp_df) <- tolower(names(temp_df))
+if(nrow(temp_df) > 0) {
+  dbWriteTable(con, "t_optimal_bets", temp_df, 
+               row.names = F, append = T)}
 ```
