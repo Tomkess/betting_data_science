@@ -334,6 +334,9 @@ temp_df <- output_ls %>%
   mutate(opt_stake = kelly_criterion * kelly_fraction * bet_stake,
          analysis_time = Sys.time())
 
+```
+ 
+```{r Write to DB, message = F, error = T, warning = F}
 names(temp_df) <- tolower(names(temp_df))
 if(nrow(temp_df) > 0) {
   dbWriteTable(con, "t_optimal_bets", temp_df, 
