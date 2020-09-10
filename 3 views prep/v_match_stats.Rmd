@@ -32,8 +32,11 @@ con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
 
 The logic of the view is to calculate for each `season`, `league`, `created_at`, `team`, `is_home` and `match_id` following numerical variables `total_goals` (total number of goals in a match), `match_results` (result of the match, i.e. `H`, `D`, `A`), `n_goals` (number of goals in the match by either a `HomeTeam` or `AwayTeam`), `n_shots`, `n_shots_ontarget`, `n_fauls`, `n_corners`, `n_yellow_cards`, `n_red_cards` (number of shots, shots on target, fouls, corners, yellow cards and red cards by a team during the match). Following are same ratio variables `r_shots_goals`, `r_st_goals`, `r_fauls_goals`, `r_corners_goals`, `r_yellow_cards`, `r_red_Cards` (ratio of shots - shots on target, fouls, corners, yellow cards, red cards; to goals by a team during the match). `r_team_odds` and `r_draw_odds` are created by using coalescing function over the bookmakers odds columns (B365, BW etc.). Additional columns are derived from the cumulative match results - I assigned 3 points for `win`, 0 for `loss` and 1 for `draw`, afterwards the cumulative sums are created for following variables - `o_strength_ah` (cumulative strength for `Home` and `Away` matches, i.e. indicator how the team is performing in `Home` and `Away` matches), `o_strength` (cumulative strength of team without considering where they play), `o_strength_season` (same as `o_strength` but the indication is related to current season), `o_strength_season_ah` (same as `o_strength_ah` but considering the current season).
 
-```{sql Match Stats, connection = con, warning = F, message = F, error = T}
+```{sql Drop Match Stats, connection = con, warning = F, message = F, error = T}
 drop view if exists v_match_stats;
+```
+
+```{sql Match Stats, connection = con, warning = F, message = F, error = T}
 create view v_match_stats as (
 
 select season, league, created_at, team, is_home, match_id, match_results, 
@@ -95,8 +98,11 @@ from t_match_stats) as m_data);
 
 The important part, as discussed in the opening paragraph, is to get for each match `n` previous matches, in order to obtain variables for the modelling stage. Eventually, for each match we will obtain variables like `n_shots__last_5` (average number of shots in the 5 previous matches), `n_shots__last_10`, ... , `n_shots__last_50`. Due to a hardware limitation, this is a rather work around, ideal solution would be to join it directly, without making a interim step.
 
-```{sql Last Matches, connection = con, warning = F, message = F, error = T}
+```{sql Drop Last Matches, connection = con, warning = F, message = F, error = T}
 drop view if exists v_last_matches;
+```
+
+```{sql Last Matches, connection = con, warning = F, message = F, error = T}
 create view v_last_matches as (
 
 select distinct 

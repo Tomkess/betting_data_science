@@ -23,7 +23,7 @@ con <- DBI::dbConnect(odbc::odbc(), "betting_ds")
 ```{sql League, connection = con, warning = F, message = F, error = T}
 drop table if exists t_mapping_league;
 create table if not exists t_mapping_league (
-created_at timestamp without tz not null,
+created_at timestamp without time zone not null,
 tipsport_league varchar(50) not null,
 results_league varchar(50) not null);
 ```
@@ -32,7 +32,7 @@ results_league varchar(50) not null);
 ```{sql Team, connection = con, warning = F, message = F, error = T}
 drop table if exists t_mapping_team;
 create table if not exists t_mapping_team (
-created_at timestamp without tz not null,
+created_at timestamp without time zone not null,
 results_league varchar(50) not null,
 results_team varchar(50) not null,
 tipsport_team varchar(50) not null,
