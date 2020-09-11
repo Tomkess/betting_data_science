@@ -32,22 +32,17 @@ rate from v_upcoming_matches;
 ```
 
 ```{sql Last Matches, connection = con, output.var = "t_mapping_team"}
-select distinct tipsport_league, results_league, results_team, 
-string_agg(tipsport_team, '') as tipsport_team from
-(select distinct created_at, tipsport_league, results_league, results_team, 
-tipsport_team, last_update
+select distinct tipsport_league, results_league, results_team, tipsport_team from
+(select distinct created_at, tipsport_league, results_league, results_team, tipsport_team, last_update
 from 
 (select created_at, 
 trim(both tipsport_league) as tipsport_league, 
 trim(both results_league) as results_league, 
 trim(both results_team) as results_team, 
 trim(both tipsport_team) as tipsport_team, 
-max(created_at) 
-over(partition by tipsport_league, results_league, 
-results_team, tipsport_team) as last_update 
+max(created_at) over(partition by tipsport_league, results_league, results_team, tipsport_team) as last_update 
 from t_mapping_team) as m_data
-where created_at = last_update) actual_mapping
-group by tipsport_league, results_league, results_team;
+where created_at = last_update) actual_mapping;
 ```
 
 ```{sql Target Variable, connection = con, output.var = "v_match_stats"}
@@ -328,12 +323,14 @@ for(i in 1:nrow(bet_data)){
 }
 
 temp_df <- output_ls %>% 
-  bind_rows() %>% 
-  cbind(., bet_data %>% 
+  bind_rows() %>%
+  as.data.frame() %>%
+  cbind(., bet_data %>%
+          as.data.frame() %>%
           select(-data, -t_b_goals, -t_interval, -tip_match_id)) %>%
   mutate(opt_stake = kelly_criterion * kelly_fraction * bet_stake,
-         analysis_time = Sys.time())
-
+         analysis_time = Sys.time()) %>%
+  as.data.frame()
 ```
  
 ```{r Write to DB, message = F, error = T, warning = F}

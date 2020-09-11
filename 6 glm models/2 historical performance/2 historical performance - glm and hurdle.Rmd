@@ -220,8 +220,7 @@ eval_masterdata <- eval_dataset %>%
            ifelse(kelly_c >= min_kelly, kelly_c * kelly_ratio * 5000, 0) *
            ifelse(n_goals_cat == pred_res, b_return, - 1))
 
-write.xlsx(x = 
-             eval_masterdata %>%
+write.xlsx(x = eval_masterdata %>%
              group_by(data_type, season, model_name, min_kelly, kelly_ratio) %>%
              summarise(t_match = n(),
                        t_b_match = sum(kelly_bet_return != 0),
