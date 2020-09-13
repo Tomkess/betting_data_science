@@ -309,7 +309,7 @@ get_pred_func <-
     }
     
     temp <- temp %>%
-      mutate(kelly_criterion = (i_rate * p_prob - 1)/i_rate)
+      mutate(kelly_criterion = 0.5 * ((i_rate * p_prob - 1)/(i_rate - 1)))
     
     return(temp)
   }
@@ -331,6 +331,9 @@ temp_df <- output_ls %>%
   mutate(opt_stake = kelly_criterion * kelly_fraction * bet_stake,
          analysis_time = Sys.time()) %>%
   as.data.frame()
+
+temp_df <- temp_df %>%
+  filter(!(is.na(opt_stake)) & !(is.infinite(opt_stake)))
 ```
  
 ```{r Write to DB, message = F, error = T, warning = F}

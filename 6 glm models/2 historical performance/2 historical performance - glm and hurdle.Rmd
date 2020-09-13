@@ -212,8 +212,8 @@ eval_masterdata <- eval_dataset %>%
   as.data.frame() %>%
   mutate(kelly_c = 
            coalesce(ifelse(pred_res == "Over 2.5", 
-                           (pred_prob * odds_251 - 1)/odds_251, 
-                           (pred_prob * odds_25 - 1)/odds_25), 0)) %>%
+                           0.5 * ((pred_prob * odds_251 - 1)/(odds_251 - 1)), 
+                           0.5 * ((pred_prob * odds_25 - 1)/(odds_25 - 1))), 0)) %>%
   mutate(n_goals_cat = ifelse(total_goals > 2.5, "Over 2.5", "Under_2.5")) %>%
   mutate(b_return = coalesce(ifelse(prob_over > prob_under, odds_251, odds_25), 0)) %>%
   mutate(kelly_bet_return = 
@@ -222,6 +222,7 @@ eval_masterdata <- eval_dataset %>%
 
 write.xlsx(x = eval_masterdata %>%
              group_by(data_type, season, model_name, min_kelly, kelly_ratio) %>%
+             filter(!is.na(kelly_c) & !is.infinite(kelly_c)) %>%
              summarise(t_match = n(),
                        t_b_match = sum(kelly_bet_return != 0),
                        return = 
