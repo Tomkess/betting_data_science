@@ -1,6 +1,5 @@
 elnet_model <- 
-  
-  function(traind_df, n_folds, final_metric, 
+  function(train_df, n_folds, final_metric, 
            elnet_mode, strata_var, target_var,
            output_objects = c("parameters", "final_model", "glmn_tune")){
     
@@ -17,7 +16,14 @@ elnet_model <-
       set_mode(elnet_mode)
     
     # ----- Stratified Sampling -----
-    cv_splits <- vfold_cv(train_df, strata = strata_var, v = n_folds)
+    if(elnet_mode %in% "regression"){
+      cv_splits <- vfold_cv(train_df, v = n_folds)
+    }
+    
+    if(elnet_mode %in% "classification"){
+      cv_splits <- 
+        vfold_cv(train_df, strata = all_of(strata_var), v = n_folds)
+    }
     
     # ----- Create Workflow -----
     ml_workflow <- 
@@ -28,13 +34,13 @@ elnet_model <-
     # ----- Set Parameters -----
     glmn_set <- parameters(penalty(range = c(-5, 1), trans = log10_trans()),
                            mixture(range = c(0, 1)))
-
+    
     # ----- Create Grid -----
     glmn_grid <- grid_regular(glmn_set, levels = c(7, 5))
     ctrl <- control_grid(save_pred = TRUE, verbose = TRUE)
     
     # ----- Tune Model -----
-    if(elnet_mode == "classification"){
+    if(elnet_mode %in% "classification"){
       
       glmn_tune <- 
         tune_grid(ml_workflow,
@@ -44,7 +50,9 @@ elnet_model <-
                                        precision, recall),
                   control = ctrl)
       
-    }else{
+    }
+    
+    if(elnet_mode %in% "regression"){
       
       glmn_tune <- 
         tune_grid(ml_workflow,
@@ -52,7 +60,6 @@ elnet_model <-
                   grid = glmn_grid,
                   metrics = metric_set(rmse, mape, smape, rsq_trad),
                   control = ctrl)
-      
     }
     
     # ----- Create Final Model -----
@@ -75,7 +82,7 @@ elnet_model <-
       output[["final_model"]] <- ml_model_fit
     }
     
-    if ("glmn_tune") {
+    if ("glmn_tune" %in% output_objects) {
       output[["glmn_tune"]] <- glmn_tune
     }
     
