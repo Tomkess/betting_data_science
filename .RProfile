@@ -1,0 +1,43 @@
+# initial settings
+.First <- function(){
+  
+  # java params
+  options(java.parameters = "-Xmx12G")
+  
+  # shiny params
+  options(shiny.maxRequestSize = 30 * 1024 ^ 2)
+  
+  # reading
+  library("readr")
+  
+  # tidy
+  library("tidyverse")
+  library("tidymodels")
+  
+  # viz
+  library("ggplot2")
+  
+  # string manipulation
+  library("stringr")
+  
+  # db
+  library("DBI")
+  
+  # data manipulation
+  library("dplyr")
+  library("data.table")
+  
+  # dates
+  library("lubridate")
+  
+  # output
+  library("xlsx")
+  
+  # set ggplot2 theme
+  theme_set(theme_minimal())
+}
+
+# loading functions
+source("R - functions/config/db_manager.R")
+source("R - functions/config/get_sql.R")
+source("R - functions/config/get_query.R")
