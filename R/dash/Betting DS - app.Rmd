@@ -1,0 +1,343 @@
+---
+title: "Betting DS - app"
+output: 
+  flexdashboard::flex_dashboard:
+    orientation: rows
+    vertical: scroll
+runtime: shiny
+---
+
+```{r setup, include = F, echo = T}
+library(flexdashboard)
+library(tidyverse)
+library(pool)
+library(dbplyr)
+library(DBI)
+library(config)
+library(GetoptLong)
+library(logging)
+library(lubridate)
+library(data.table)
+library(dplyr)
+library(DT)
+library(stringr)
+library(xlsx)
+
+# ---- Enable to upload a bit bigger files -----
+options(shiny.maxRequestSize = 30 * 1024 ^ 2)
+options(java.parameters = "-Xmx12G")
+
+con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
+```
+
+```{sql connection = con, output.var = "v_match_stats", eval = T, include = T, comment = F, echo = F}
+select distinct trim(both league) as league, trim(both team) as team from v_match_stats;
+```
+
+```{sql connection = con, output.var = "t_mapping_league", eval = T, include = T, comment = F, echo = F}
+select distinct trim(both tipsport_league) as tipsport_league, trim(both results_league) as results_league 
+from 
+(select *, 
+max(created_at) over(partition by tipsport_league, results_league) as last_update from t_mapping_league) as m_data 
+where created_at = last_update;
+```
+
+```{sql connection = con, output.var = "t_mapping_team", eval = T, include = T, comment = F, echo = F}
+select distinct tipsport_league, results_league, results_team, tipsport_team from
+(select distinct created_at, tipsport_league, results_league, results_team, tipsport_team, last_update
+from 
+(select created_at, 
+trim(both tipsport_league) as tipsport_league, 
+trim(both results_league) as results_league, 
+trim(both results_team) as results_team, 
+trim(both tipsport_team) as tipsport_team, 
+max(created_at) over(partition by tipsport_league, results_league, results_team, tipsport_team) as last_update 
+from t_mapping_team) as m_data
+where created_at = last_update) actual_mapping;
+```
+
+```{sql connection = con, output.var = "v_tipsport_bookmaker", eval = T, include = T, comment = F, echo = F}
+select distinct * from t_tipsport_bookmaker;
+```
+
+```{r Establish League Editing, eval = T, include = T, comment = F, echo = F}
+modDtUi <- function(id){
+  ns = NS(id)
+  DT::dataTableOutput(ns('x1'))
+}
+
+modDt <-  function(input, output, session, data){
+  output$x1 <- 
+    DT::renderDataTable(data, 
+                        selection = "none", 
+                        editable = list(target = "all",
+                                        disable = 
+                                          list(columns = 
+                                                 c(1))), 
+                        server = TRUE, 
+                        options = list(scrollY = "400px", 
+                                       paging = T,
+                                       pageLength = 5,
+                                       scrollX = TRUE, 
+                                       searchHighlight = F,
+                                       fixedColumns = list(leftColumns = 2)), 
+                        filter = "top", class = "cell-border stripe") 
+  proxy <- dataTableProxy("x1", session = session)
+  
+  updatedData <- eventReactive(input$x1_cell_edit, {
+    info = input$x1_cell_edit
+    if (!is.null(info)) {
+      str(info)
+      data <<- DT::editData(data, info)
+    }
+    data
+  }, ignoreNULL = FALSE)
+  
+  return(updatedData)
+}
+```
+
+Row {data-height=700}
+-----------------------------------------------------------------------
+
+### League Dictionary
+```{r Editable League Names, eval = T, include = T, comment = F, echo = F}
+# ----- Initiate Editing -----
+modDtUi("editable_league")
+changed_league <- 
+  callModule(modDt, "editable_league", 
+             data = v_match_stats %>%
+               select(league) %>%
+               distinct() %>%
+               rename(`Results League` = league) %>%
+               left_join(., t_mapping_league, 
+                         by = c("Results League" = "results_league")) %>%
+               rename(`Tipsport League` = tipsport_league) %>%
+               as.data.frame())
+
+# ----- Rewrite Table -----
+saved_changes <- reactive({
+  upload_temp <- changed_league() %>% as.data.frame()
+  
+  return(upload_temp)
+})
+
+# ----- Save to Database -----
+actionButton("upload_data", h4("Store League Mapping"))
+upload_changes <- eventReactive(input$upload_data, {
+  
+  league_mapping <- 
+    saved_changes() %>%
+    mutate(created_at = Sys.time()) %>%
+    filter(`Tipsport League` != c("")) %>%
+    rename(tipsport_league = `Tipsport League`,
+           results_league = `Results League`) %>%
+    na.omit() %>%
+    as.data.frame()
+  
+  if(nrow(league_mapping) > 0) {
+    dbWriteTable(con, "t_mapping_league", league_mapping, 
+                 row.names = F, append = T)
+  }
+})
+
+renderText({
+  upload_changes()
+})
+```
+
+### List of Tipsport Leagues
+
+```{r League List, eval = T, include = T, comment = F, echo = F}
+DT::datatable(v_tipsport_bookmaker %>%
+                filter(sport_category %in% "Fotbal - muži") %>%
+                select(sport_league) %>%
+                distinct() %>%
+                rename(`Tipsport League` = sport_league) %>%
+                as.data.frame(), 
+              
+              options = list(scrollY = "400px", 
+                             paging = TRUE,
+                             pageLength = 5,
+                             scrollX = TRUE, 
+                             searchHighlight = F,
+                             fixedColumns = list(leftColumns = 2)), 
+              filter = "top", class = "cell-border stripe")
+
+```
+
+### Stored Mappings in DB
+
+```{r Actual DB State League, eval = T, include = T, comment = F, echo = F}
+DT::datatable(t_mapping_league %>%
+                as.data.frame(), 
+              
+              options = list(scrollY = "400px", 
+                             paging = TRUE,
+                             pageLength = 5,
+                             scrollX = TRUE, 
+                             searchHighlight = F,
+                             fixedColumns = list(leftColumns = 2)), 
+              filter = "top", class = "cell-border stripe")
+
+```
+
+
+```{r Tipsport Teams, eval = T, include = F, comment = F, echo = F}
+tipsport_teams <-
+  v_tipsport_bookmaker %>%
+  filter(sport_category %in% "Fotbal - muži" &
+           (eventtypedescription %in% c("Vítěz", "Počet gólů (bodů)")) &
+           # sport_league %in% t_mapping_league$tipsport_league & 
+           !(type %in% c("x", "o", "u"))) %>%
+  rbind(., v_tipsport_bookmaker %>%
+          filter(sport_category %in% "Fotbal - muži" &
+                   eventtypedescription %in% c("Vítěz", "Počet gólů (bodů)") &
+                   sport_league %in% t_mapping_league$tipsport_league & 
+                   !(type %in% c("x", "o", "u")))) %>%
+  as.data.frame() %>%
+  select(fullname, sport_league, dateclosed) %>%
+  select(-dateclosed) %>%
+  distinct() %>% 
+  rename(`Tipsport Team Name` = fullname,
+         `Tipsport League` = sport_league) %>%
+  as.data.frame()
+```
+
+```{r Results Teams, eval = T, include = F, comment = F, echo = F}
+result_teams <- 
+  
+  # - get current teams from DB
+  v_match_stats %>%
+  
+  #filter(league %in% unique(t_mapping_league$results_league)) %>%
+  
+  # - assign tipsport league
+  left_join(., t_mapping_league, by = c("league" = "results_league")) %>%
+  rename(`Results League` = league,
+         `Tipsport League` = tipsport_league) %>%
+  distinct() %>%
+  as.data.frame() %>%
+  
+  # - assign current team name status from DB
+  left_join(., t_mapping_team, 
+            by = c("Results League" = "results_league", 
+                   "team" = "results_team", 
+                   "Tipsport League" = "tipsport_league")) %>%
+  rename(`Tipsport Team [DB]` = tipsport_team) %>%
+  distinct() %>%
+  as.data.frame() %>%
+  
+  # # - join all tipsport team to results match to see what might be easily joined
+  # left_join(., tipsport_teams %>% mutate(`Join Status` = "Joined")
+  #           , 
+  #           by= c("Tipsport League" = "Tipsport League", 
+  #                 "team" = "Tipsport Team Name")) %>%
+  # distinct() %>%
+  # as.data.frame() %>%
+  
+  # - coalesce two columns db and tipsport
+  # rowwise() %>%
+  # mutate(`Tipsport Team Name` = ifelse(`Join Status` %in% c("Joined"), team, NA),
+  #        `Tipsport Team Name N` = coalesce(`Tipsport Team [DB]`, `Tipsport Team Name`)) %>%
+  rename(`Results Team Name` = team) %>%
+  select(`Results League`, `Tipsport League`, 
+         `Results Team Name`, `Tipsport Team [DB]`) %>%
+  rename(`Tipsport Team Name` = `Tipsport Team [DB]`) %>%
+  as.data.frame() %>%
+  distinct() %>%
+  as.data.frame()
+```
+
+Row {data-height=700}
+-----------------------------------------------------------------------
+
+```{r Establish Team Editing, eval = T, include = T, comment = F, echo = F}
+t_modDtUi <- function(id){
+  ns = NS(id)
+  DT::dataTableOutput(ns('x2'))
+}
+
+t_modDt <-  function(input, output, session, data){
+  output$x2 <- 
+    DT::renderDataTable(data, 
+                        selection = "none", 
+                        editable = list(target = "all",
+                                        disable = 
+                                          list(columns = 
+                                                 c(1,2,3))), 
+                        server = TRUE, 
+                        options = list(scrollY = "400px", 
+                                       paging = T,
+                                       pageLength = 5,
+                                       scrollX = TRUE, 
+                                       searchHighlight = F,
+                                       fixedColumns = list(leftColumns = 2)), 
+                        filter = "top", class = "cell-border stripe") 
+  proxy <- dataTableProxy("x2", session = session)
+  
+  updatedData <- eventReactive(input$x2_cell_edit, {
+    info = input$x2_cell_edit
+    if (!is.null(info)) {
+      str(info)
+      data <<- DT::editData(data, info)
+    }
+    data
+  }, ignoreNULL = FALSE)
+  
+  return(updatedData)
+}
+```
+
+### Joined Table
+```{r Editable Team Names, eval = T, include = T, comment = F, echo = F}
+t_modDtUi("editable")
+changed_team <- callModule(t_modDt, "editable", data = result_teams)
+
+# ----- Save Changes -----
+saved_team_changes <- reactive({
+  upload_team <- changed_team() %>% as.data.frame()
+  return(upload_team)
+})
+
+# ----- Save to Database -----
+actionButton("upload_team_data", h4("Store Team Mapping"))
+upload_team_changes <- eventReactive(input$upload_team_data, {
+  
+  team_mapping <- 
+    saved_team_changes() %>% 
+    select(`Results League`, `Tipsport League`, `Results Team Name`, `Tipsport Team Name`) %>%
+    distinct() %>%
+    mutate(created_at = Sys.time()) %>%
+    rename(results_league = `Results League`, 
+           tipsport_league = `Tipsport League`, 
+           results_team = `Results Team Name`, 
+           tipsport_team = `Tipsport Team Name`) %>%
+    filter(!(is.na(tipsport_team)) & tipsport_team != "") %>%
+    distinct() %>%
+    as.data.frame()
+  
+  if(nrow(team_mapping) > 0) {
+    dbWriteTable(con, "t_mapping_team", team_mapping, 
+                 row.names = F, append = T)
+  }
+})
+
+renderText({
+  upload_team_changes()
+})
+```
+
+### Tipsport Teams
+```{r Tipsport Helper Table, eval = T, include = T, comment = F, echo = F}
+DT::datatable(tipsport_teams %>%
+                as.data.frame(), 
+              
+              options = list(scrollY = "400px", 
+                             paging = TRUE,
+                             pageLength = 5,
+                             scrollX = TRUE, 
+                             searchHighlight = F,
+                             fixedColumns = list(leftColumns = 2)), 
+              filter = "top", class = "cell-border stripe")
+```
