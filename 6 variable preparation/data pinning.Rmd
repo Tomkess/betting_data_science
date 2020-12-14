@@ -32,6 +32,11 @@ select * from v_last_matches;
 select * from v_match_stats;
 ```
 
+## Bookmakers Odds
+```{sql Bookmakers Data, connection = con, output.var = "t_match_stats"}
+select * from t_match_stats;
+```
+
 ## Upcoming Matches
 ```{sql Upcoming Matches, connection = con, output.var = "v_upcoming_matches"}
 select distinct created_at, dateclosed, fullname, sport_league, 
@@ -66,6 +71,7 @@ from v_match_stats;
 ```{r Binning, warning = F, message = F, error = T}
 v_last_matches %>% pin("v_last_matches", board = "local")
 v_match_stats %>% pin("v_match_stats", board = "local")
+t_match_stats %>% pin("t_match_stats", board = "local")
 v_upcoming_matches %>% pin("v_upcoming_matches", board = "local")
 t_mapping_team %>% pin("t_mapping_team", board = "local")
 target_vars %>% pin("target_vars", board = "local")
