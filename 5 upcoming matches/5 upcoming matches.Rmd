@@ -8,10 +8,6 @@ output:
 subtitle: Create list of upcoming matches
 ---
 
-```{r setup, include=FALSE}
-knitr::opts_chunk$set(echo = TRUE)
-```
-
 ### Establish Connection
 ```{r connection, warning = F, message = F, error = F}
 con <- DBI::dbConnect(odbc::odbc(), "betting_ds", bigint = "integer")
