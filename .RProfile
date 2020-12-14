@@ -13,6 +13,7 @@
   # tidy
   library("tidyverse")
   library("tidymodels")
+  library("pins")
   
   # viz
   library("ggplot2")
@@ -33,11 +34,17 @@
   # output
   library("xlsx")
   
+  # web
+  library(httr)
+  
   # set ggplot2 theme
   theme_set(theme_minimal())
 }
+# one line functions
+mean_x <- function(x) mean(x, na.rm = T, fill = 0)
+sum_x <- function(x) sum(x, na.rm = T, fill = 0)
 
 # loading functions
-source("R - functions/config/db_manager.R")
-source("R - functions/config/get_sql.R")
-source("R - functions/config/get_query.R")
+source("./R/lib/db_manager.R")
+source("./R/lib/get_sql.R")
+source("./R/lib/get_query.R")

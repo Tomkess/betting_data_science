@@ -2,8 +2,10 @@
 .Rhistory
 *.RData
 .Ruserdata
+temp*
 *.html
 data/*
+*.jpeg
 *.xlsx
 *.txt
 *.pdf
