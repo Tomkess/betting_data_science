@@ -26,17 +26,23 @@ upcoming_matches <-
   tidyr::spread(., rate_type, rate) %>% 
   as.data.frame() %>% 
   
-  left_join(., has_history_df, by = c("t_home_team" = "team",
-                                      "sport_league" = "tipsport_league")) %>% 
+  left_join(., has_history_df, 
+            by = c("t_home_team" = "team",
+                   "sport_league" = "tipsport_league")) %>% 
   rename(home_history = has_history) %>% 
   
-  left_join(., has_history_df, by = c("t_away_team" = "team",
-                                      "sport_league" = "tipsport_league")) %>% 
+  left_join(., has_history_df, 
+            by = c("t_away_team" = "team",
+                   "sport_league" = "tipsport_league")) %>% 
   rename(away_history = has_history) %>% 
   
   # keep only matches with history
   na.omit() %>% 
   dplyr::select(-home_history, -away_history) %>% 
+  
+  # keep only today's matches and today's data
+  dplyr::filter(as.Date(dateclosed) %in% Sys.Date() &
+                  as.Date(created_at) %in% Sys.Date()) %>% 
   as.data.frame()
 
 upcoming_matches$prob_25 <- NA
@@ -49,7 +55,7 @@ for(i in 1:nrow(upcoming_matches)){
   
   # subset data
   tmp_data <- 
-    results_data %>% 
+    pin_get("results_data", "local") %>% 
     dplyr::filter(tipsport_league %in% upcoming_matches$sport_league[i] &
                     created_at < as.Date(upcoming_matches$dateclosed[i]) &
                     created_at >= as.Date(upcoming_matches$dateclosed[i]) - 360 * 2)
