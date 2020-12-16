@@ -133,6 +133,6 @@ upcoming_matches <-
              ((prob_25 * odds_25 - 1)/(odds_25 - 1)), 
              ((prob_251 * odds_251 - 1)/(odds_251 - 1)))) %>%
   
-  dplyr::mutate(is_bet = dplyr::if_else(0.5 * kelly_prob > 0.1, 1, 0),
+  dplyr::mutate(is_bet = dplyr::if_else(0.25 * kelly_prob > 0.1, 1, 0),
                 bet_stake = is_bet * kelly_prob * 3000) %>% 
   as.data.frame()
