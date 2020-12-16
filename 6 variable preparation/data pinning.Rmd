@@ -68,7 +68,7 @@ from v_match_stats;
 ```
 
 # To Board
-```{r Binning, warning = F, message = F, error = T}
+```{r Board Pinning, warning = F, message = F, error = T}
 v_last_matches %>% pin("v_last_matches", board = "local")
 v_match_stats %>% pin("v_match_stats", board = "local")
 t_match_stats %>% pin("t_match_stats", board = "local")
