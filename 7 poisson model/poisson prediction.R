@@ -42,7 +42,12 @@ upcoming_matches <-
   
   # keep only today's matches and today's data
   dplyr::filter(as.Date(dateclosed) %in% Sys.Date() &
-                  as.Date(created_at) %in% Sys.Date()) %>% 
+                  as.Date(created_at) %in% Sys.Date()) %>%
+  
+  # calculate margin
+  dplyr::mutate(margin = 1/odds_25 + 1/odds_251) %>% 
+  
+  # lower down rows
   as.data.frame()
 
 upcoming_matches$prob_25 <- NA
@@ -125,7 +130,7 @@ for(i in 1:nrow(upcoming_matches)){
 }
 
 # Kelly Criterion
-upcoming_matches <- 
+upcoming_matches_bet <- 
   upcoming_matches %>% 
   dplyr::mutate(
     kelly_prob = 
@@ -133,6 +138,14 @@ upcoming_matches <-
              ((prob_25 * odds_25 - 1)/(odds_25 - 1)), 
              ((prob_251 * odds_251 - 1)/(odds_251 - 1)))) %>%
   
-  dplyr::mutate(is_bet = dplyr::if_else(0.25 * kelly_prob > 0.1, 1, 0),
-                bet_stake = is_bet * kelly_prob * 3000) %>% 
+  dplyr::mutate(is_bet = dplyr::if_else(kelly_prob > 0.1, 1, 0),
+                bet_stake = is_bet * kelly_prob * 1000,
+                bet_margin = dplyr::if_else(prob_25 > prob_251, odds_25/(1/prob_25), odds_251/(1/prob_251))) %>% 
+  
+  dplyr::group_by(dateclosed, sport_league, t_home_team, t_away_team, pred_res, is_bet) %>% 
+  summarise_at(., vars(odds_25, odds_251, margin, prob_25, prob_251, bet_stake, bet_margin), mean) %>% 
+  
+  as.data.frame() %>%   
+  mutate(new_stake = 3000 * bet_stake/sum(bet_stake)) %>% 
+  
   as.data.frame()
