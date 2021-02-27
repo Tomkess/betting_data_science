@@ -13,4 +13,4 @@ betting_ds$db_config(db_drv = "PostgreSQL",
                      password = "thatSounds77")
 
 # ------ Create Database -----
-betting_ds$evalSQL(sql = "./db/create db/create-db.sql")
+betting_ds$run(sql_path = "./db/create db/create-db.sql")
