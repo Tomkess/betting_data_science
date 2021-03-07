@@ -283,3 +283,6 @@ if(nrow(t_match_stats) > 0){
                         is_append = F, is_overwrite = T)
   
 }
+
+# ----- Download Other Data -----
+source("C:/Users/Peter/Desktop/ds_projects/betting_data_science/2 data preparation/1 football data co uk/2 football data co uk - other leagues.R")
