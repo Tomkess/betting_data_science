@@ -1,4 +1,4 @@
-drop table if exists t_tipsport_bookmaker;
+drop table if exists t_tipsport_bookmaker cascade;
 
 create table if not exists t_tipsport_bookmaker ( eventtype varchar(250) not null,
 eventtypedescription varchar(250) not null,

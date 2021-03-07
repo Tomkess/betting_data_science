@@ -1,6 +1,5 @@
-drop table if exists t_match_calendar;
-
-create table if not exists t_match_calendar ( match_id serial primary key,
+drop table if exists t_match_calendar cascade;
+create table t_match_calendar ( match_id serial primary key,
 created_at date not null,
 league varchar(50) not null,
 season varchar(50) not null,

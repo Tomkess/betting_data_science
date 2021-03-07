@@ -1,4 +1,4 @@
-drop table if exists t_match_stats;
+drop table if exists t_match_stats cascade;
 
 create table if not exists t_match_stats ( season varchar(50) not null,
 league varchar(50) not null,
